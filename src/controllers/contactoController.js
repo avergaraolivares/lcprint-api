@@ -61,7 +61,29 @@ const marcarLeido = async (req, res) => {
   }
 }
 
+// ── Helpers ───────────────────────────────────────────────────
+const fetchImageBuffer = async (url) => {
+  if (!url) return null
+  try {
+    const https = require('https')
+    const http  = require('http')
+    return await new Promise((resolve) => {
+      const protocol = url.startsWith('https') ? https : http
+      const r = protocol.get(url, { timeout: 8000 }, (res) => {
+        const bufs = []
+        res.on('data', c => bufs.push(c))
+        res.on('end', () => resolve(Buffer.concat(bufs)))
+      })
+      r.on('error', () => resolve(null))
+      r.on('timeout', () => { r.destroy(); resolve(null) })
+    })
+  } catch { return null }
+}
+
 // ── Generador PDF ─────────────────────────────────────────────
+const BANNER_URL = 'https://res.cloudinary.com/db3hrbj6s/image/upload/v1781800861/lcprint/catalogo/lyu2fot10bdbapwwrkk8.png'
+const LOGO_URL   = 'https://res.cloudinary.com/db3hrbj6s/image/upload/v1781800706/lcprint/catalogo/cilpzmdcljidzlukeppn.png'
+
 const generarCatalogoPDF = async (req, res) => {
   try {
     const { tipo = 'completo', categoria_id, productos_ids } = req.body
@@ -87,6 +109,11 @@ const generarCatalogoPDF = async (req, res) => {
 
     const [productos] = await db.query(queryProds, params)
 
+    const [bannerBuf, logoBuf] = await Promise.all([
+      fetchImageBuffer(BANNER_URL),
+      fetchImageBuffer(LOGO_URL),
+    ])
+
     const doc = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: false })
     const chunks = []
     doc.on('data', chunk => chunks.push(chunk))
@@ -97,144 +124,125 @@ const generarCatalogoPDF = async (req, res) => {
       res.send(pdfBuffer)
     })
 
-    const W = 595.28
-    const H = 841.89
-    const MARGIN = 40
-    const AZUL = '#00AEEF'
-    const TEXTO = '#1A1A1A'
-    const SUBTEXTO = '#666666'
+    const W        = 595.28
+    const H        = 841.89
+    const MARGIN   = 20
+    const AMARILLO = '#F5C300'
+    const AZUL     = '#00AEEF'
+    const NEGRO    = '#1A1A1A'
+    const GRIS     = '#555555'
 
-    // ── PORTADA ────────────────────────────────────────────────
-    doc.addPage()
-    doc.rect(0, 0, W, H * 0.55).fill(AZUL)
-    doc.rect(0, H * 0.55, W, H * 0.45).fill('#FFFFFF')
-    doc.rect(0, H * 0.52, W, 8).fill('#0077B6')
+    const drawHeader = async () => {
+      doc.rect(0, 0, W, 110).fill(AMARILLO)
 
-    doc.fillColor('white').font('Helvetica-Bold').fontSize(42)
-       .text(config.nombre || 'LC Print SpA', MARGIN, 180, { align: 'center', width: W - MARGIN * 2 })
-    doc.font('Helvetica').fontSize(18).fillColor('white')
-       .text('Catálogo de Productos', MARGIN, 240, { align: 'center', width: W - MARGIN * 2 })
-    doc.moveTo(W / 2 - 60, 275).lineTo(W / 2 + 60, 275).strokeColor('white').lineWidth(1).stroke()
-    doc.font('Helvetica').fontSize(11).fillColor('white')
-       .text(`Generado el ${new Date().toLocaleDateString('es-CL')}`, MARGIN, 285, { align: 'center', width: W - MARGIN * 2 })
+      if (logoBuf) {
+        try { doc.image(logoBuf, MARGIN, 8, { height: 60, fit: [80, 60] }) } catch {}
+      }
 
-    const infoY = H * 0.60
-    doc.font('Helvetica-Bold').fontSize(14).fillColor(AZUL)
-       .text(config.nombre || 'LC Print SpA', MARGIN, infoY, { align: 'center', width: W - MARGIN * 2 })
-    if (config.direccion) {
-      doc.font('Helvetica').fontSize(11).fillColor(SUBTEXTO)
-         .text(config.direccion + (config.ciudad ? ', ' + config.ciudad : ''), MARGIN, infoY + 25, { align: 'center', width: W - MARGIN * 2 })
-    }
-    if (config.email) {
-      doc.font('Helvetica').fontSize(11).fillColor(SUBTEXTO)
-         .text(config.email, MARGIN, infoY + 45, { align: 'center', width: W - MARGIN * 2 })
-    }
-    if (config.telefono) {
-      doc.font('Helvetica').fontSize(11).fillColor(SUBTEXTO)
-         .text(config.telefono, MARGIN, infoY + 65, { align: 'center', width: W - MARGIN * 2 })
-    }
-    doc.rect(W / 2 - 70, H * 0.82, 140, 36).fill(AZUL)
-    doc.font('Helvetica-Bold').fontSize(12).fillColor('white')
-       .text(`${productos.length} productos`, W / 2 - 70, H * 0.82 + 11, { align: 'center', width: 140 })
+      if (bannerBuf) {
+        try { doc.image(bannerBuf, 110, 0, { width: W - 110, height: 110, cover: [W - 110, 110] }) } catch {}
+      }
 
-    // ── PÁGINAS DE PRODUCTOS ───────────────────────────────────
-    const COLS = 2
-    const PER_PAGE = COLS * 3
-    const CARD_W = (W - MARGIN * 2 - 15) / 2
-    const CARD_H = (H - 120 - 60) / 3
-    const IMG_H = CARD_H * 0.48
+      doc.save()
+      doc.rect(110, 0, W - 110, 110).fill('#003566')
+      doc.opacity(0.45)
+      doc.rect(110, 0, W - 110, 110).fill('#003566')
+      doc.restore()
 
-    const fetchImage = async (url) => {
-      if (!url) return null
-      try {
-        const https = require('https')
-        const http  = require('http')
-        return await new Promise((resolve) => {
-          const protocol = url.startsWith('https') ? https : http
-          const r = protocol.get(url, { timeout: 5000 }, (res) => {
-            const bufs = []
-            res.on('data', c => bufs.push(c))
-            res.on('end', () => resolve(Buffer.concat(bufs)))
-          })
-          r.on('error', () => resolve(null))
-          r.on('timeout', () => { r.destroy(); resolve(null) })
-        })
-      } catch { return null }
+      doc.font('Helvetica-Bold').fontSize(22).fillColor('white')
+         .text('Catálogo de Productos', 120, 35, { width: W - 140 })
+      doc.font('Helvetica').fontSize(10).fillColor('white')
+         .text(`${config.nombre || 'LC Print SpA'} · ${new Date().toLocaleDateString('es-CL')}`, 120, 65, { width: W - 140 })
     }
 
-    let pageNum = 0
+    const drawFooter = () => {
+      doc.rect(0, H - 45, W, 45).fill(AMARILLO)
+
+      if (logoBuf) {
+        try { doc.image(logoBuf, MARGIN, H - 43, { height: 38, fit: [50, 38] }) } catch {}
+      }
+
+      const fx = 80
+      const fy = H - 38
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(NEGRO)
+         .text(
+           config.direccion
+             ? `${config.direccion}${config.ciudad ? ' - ' + config.ciudad : ''}`
+             : 'Puente Alto, Santiago',
+           fx, fy, { width: W - fx - MARGIN }
+         )
+      doc.font('Helvetica').fontSize(8).fillColor(NEGRO)
+         .text(
+           [config.telefono, config.email].filter(Boolean).join('   '),
+           fx, fy + 13, { width: W - fx - MARGIN }
+         )
+    }
+
+    const COLS      = 4
+    const PER_PAGE  = COLS * 2
+    const HEADER_H  = 110
+    const FOOTER_H  = 45
+    const GAP       = 5
+    const CONTENT_H = H - HEADER_H - FOOTER_H - GAP * 3
+    const CARD_W    = (W - MARGIN * 2 - (COLS - 1) * GAP) / COLS
+    const CARD_H    = (CONTENT_H - GAP) / 2
+    const IMG_H     = CARD_H * 0.56
 
     for (let i = 0; i < productos.length; i += PER_PAGE) {
       const grupo = productos.slice(i, i + PER_PAGE)
-      pageNum++
       doc.addPage()
 
-      // Header
-      doc.rect(0, 0, W, 50).fill(AZUL)
-      doc.font('Helvetica-Bold').fontSize(13).fillColor('white')
-         .text(config.nombre || 'LC Print SpA', MARGIN, 17, { width: W / 2 - MARGIN })
-      doc.font('Helvetica').fontSize(10).fillColor('white')
-         .text('Catálogo de Productos', W / 2, 19, { width: W / 2 - MARGIN, align: 'right' })
+      await drawHeader()
 
-      // Categoría
-      const catNombre = grupo[0].categoria_nombre
-      doc.rect(MARGIN, 58, W - MARGIN * 2, 24).fill('#EEF7FD')
-      doc.font('Helvetica-Bold').fontSize(10).fillColor(AZUL)
-         .text(catNombre.toUpperCase(), MARGIN + 10, 65)
-
-      // Grilla
       for (let j = 0; j < grupo.length; j++) {
         const prod = grupo[j]
         const col  = j % COLS
         const row  = Math.floor(j / COLS)
-        const x    = MARGIN + col * (CARD_W + 15)
-        const y    = 90 + row * (CARD_H + 12)
+        const x    = MARGIN + col * (CARD_W + GAP)
+        const y    = HEADER_H + GAP + row * (CARD_H + GAP)
 
-        doc.rect(x, y, CARD_W, CARD_H).fill('white').stroke('#E8E8E8')
+        // Fondo tarjeta
+        doc.rect(x, y, CARD_W, CARD_H).fill('white')
 
+        // Imagen
         const imgUrl = prod.imagen_medium || prod.imagen_principal
         if (imgUrl) {
-          const imgBuffer = await fetchImage(imgUrl)
-          if (imgBuffer) {
+          const imgBuf = await fetchImageBuffer(imgUrl)
+          if (imgBuf) {
             try {
-              doc.image(imgBuffer, x + 2, y + 2, {
-                width: CARD_W - 4, height: IMG_H - 4,
+              doc.image(imgBuf, x + 2, y + 2, {
+                width: CARD_W - 4,
+                height: IMG_H - 4,
                 fit: [CARD_W - 4, IMG_H - 4],
-                align: 'center', valign: 'center'
+                align: 'center',
+                valign: 'center'
               })
             } catch {}
           }
         }
 
-        doc.moveTo(x, y + IMG_H).lineTo(x + CARD_W, y + IMG_H).strokeColor('#E8E8E8').lineWidth(0.5).stroke()
+        // Separador
+        doc.moveTo(x, y + IMG_H).lineTo(x + CARD_W, y + IMG_H)
+           .strokeColor('#DDDDDD').lineWidth(0.5).stroke()
 
-        const textY = y + IMG_H + 8
-        const textW = CARD_W - 16
+        const tY = y + IMG_H + 4
+        const tW = CARD_W - 6
 
-        doc.rect(x + 8, textY, textW * 0.6, 14).fill('#EEF7FD')
-        doc.font('Helvetica').fontSize(7).fillColor(AZUL)
-           .text(prod.categoria_nombre, x + 10, textY + 3, { width: textW * 0.6 - 4 })
+        // Nombre
+        doc.font('Helvetica-Bold').fontSize(7).fillColor(NEGRO)
+           .text(prod.nombre.toUpperCase(), x + 3, tY, { width: tW, height: 22, ellipsis: true })
 
-        doc.font('Helvetica-Bold').fontSize(10).fillColor(TEXTO)
-           .text(prod.nombre, x + 8, textY + 20, { width: textW, height: 28, ellipsis: true })
+        // SKU
+        doc.font('Helvetica').fontSize(6.5).fillColor(GRIS)
+           .text(`SKU: ${prod.codigo}`, x + 3, tY + 24, { width: tW })
 
-        doc.font('Helvetica').fontSize(8).fillColor(SUBTEXTO)
-           .text(`Cód: ${prod.codigo}`, x + 8, textY + 52, { width: textW })
-
-        if (prod.precio) {
-          const precioColor = prod.precio === 'Consultar' ? SUBTEXTO : AZUL
-          doc.font('Helvetica-Bold').fontSize(11).fillColor(precioColor)
-             .text(prod.precio, x + 8, textY + 66, { width: textW })
-        }
+        // Precio
+        const precio = prod.precio || 'Consultar'
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(AZUL)
+           .text(`PRECIO: ${precio}`, x + 3, tY + 34, { width: tW })
       }
 
-      // Pie
-      doc.rect(0, H - 30, W, 30).fill('#F0F0F0')
-      doc.font('Helvetica').fontSize(8).fillColor(SUBTEXTO)
-         .text(
-           `${config.nombre || 'LC Print SpA'} · ${config.email || ''} · Página ${pageNum}`,
-           MARGIN, H - 20, { align: 'center', width: W - MARGIN * 2 }
-         )
+      drawFooter()
     }
 
     doc.end()
