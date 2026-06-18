@@ -69,15 +69,15 @@ const fetchImageBuffer = async (url) => {
     const http  = require('http')
     return await new Promise((resolve) => {
       const protocol = url.startsWith('https') ? https : http
-      const r = protocol.get(url, { timeout: 8000 }, (res) => {
+      const r = protocol.get(url, { timeout: 10000 }, (res) => {
         const bufs = []
         res.on('data', c => bufs.push(c))
         res.on('end', () => resolve(Buffer.concat(bufs)))
       })
-      r.on('error', () => resolve(null))
-      r.on('timeout', () => { r.destroy(); resolve(null) })
+      r.on('error', (e) => { console.error('fetchImage error:', url, e.message); resolve(null) })
+      r.on('timeout', () => { console.error('fetchImage timeout:', url); r.destroy(); resolve(null) })
     })
-  } catch { return null }
+  } catch(e) { console.error('fetchImage catch:', e.message); return null }
 }
 
 // ── Generador PDF ─────────────────────────────────────────────
@@ -109,10 +109,13 @@ const generarCatalogoPDF = async (req, res) => {
 
     const [productos] = await db.query(queryProds, params)
 
+    console.log('Descargando banner y logo...')
     const [bannerBuf, logoBuf] = await Promise.all([
       fetchImageBuffer(BANNER_URL),
       fetchImageBuffer(LOGO_URL),
     ])
+    console.log('Banner:', bannerBuf ? bannerBuf.length + ' bytes' : 'NULL')
+    console.log('Logo:', logoBuf ? logoBuf.length + ' bytes' : 'NULL')
 
     const doc = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: false })
     const chunks = []
@@ -131,35 +134,46 @@ const generarCatalogoPDF = async (req, res) => {
     const AZUL     = '#00AEEF'
     const NEGRO    = '#1A1A1A'
     const GRIS     = '#555555'
+    const HEADER_H = 120
 
-    const drawHeader = async () => {
-      doc.rect(0, 0, W, 110).fill(AMARILLO)
+    const drawHeader = () => {
+      // Fondo amarillo para zona del logo
+      doc.rect(0, 0, 110, HEADER_H).fill(AMARILLO)
 
+      // Logo en zona amarilla
       if (logoBuf) {
-        try { doc.image(logoBuf, MARGIN, 8, { height: 60, fit: [80, 60] }) } catch {}
+        try {
+          doc.image(logoBuf, 5, 10, { width: 100, height: 100, fit: [100, 100] })
+        } catch(e) { console.error('Logo draw error:', e.message) }
       }
 
+      // Banner ocupa el resto del header
       if (bannerBuf) {
-        try { doc.image(bannerBuf, 110, 0, { width: W - 110, height: 110, cover: [W - 110, 110] }) } catch {}
+        try {
+          doc.image(bannerBuf, 110, 0, {
+            width: W - 110,
+            height: HEADER_H,
+            cover: [W - 110, HEADER_H]
+          })
+        } catch(e) { console.error('Banner draw error:', e.message) }
+      } else {
+        doc.rect(110, 0, W - 110, HEADER_H).fill('#003566')
       }
 
-      doc.save()
-      doc.rect(110, 0, W - 110, 110).fill('#003566')
-      doc.opacity(0.45)
-      doc.rect(110, 0, W - 110, 110).fill('#003566')
-      doc.restore()
-
-      doc.font('Helvetica-Bold').fontSize(22).fillColor('white')
+      // Texto sobre el banner
+      doc.font('Helvetica-Bold').fontSize(24).fillColor('white')
          .text('Catálogo de Productos', 120, 35, { width: W - 140 })
-      doc.font('Helvetica').fontSize(10).fillColor('white')
-         .text(`${config.nombre || 'LC Print SpA'} · ${new Date().toLocaleDateString('es-CL')}`, 120, 65, { width: W - 140 })
+      doc.font('Helvetica').fontSize(11).fillColor('white')
+         .text(`${config.nombre || 'LC Print SpA'} · ${new Date().toLocaleDateString('es-CL')}`, 120, 68, { width: W - 140 })
     }
 
     const drawFooter = () => {
       doc.rect(0, H - 45, W, 45).fill(AMARILLO)
 
       if (logoBuf) {
-        try { doc.image(logoBuf, MARGIN, H - 43, { height: 38, fit: [50, 38] }) } catch {}
+        try {
+          doc.image(logoBuf, MARGIN, H - 43, { height: 38, fit: [50, 38] })
+        } catch(e) {}
       }
 
       const fx = 80
@@ -180,7 +194,6 @@ const generarCatalogoPDF = async (req, res) => {
 
     const COLS      = 4
     const PER_PAGE  = COLS * 2
-    const HEADER_H  = 110
     const FOOTER_H  = 45
     const GAP       = 5
     const CONTENT_H = H - HEADER_H - FOOTER_H - GAP * 3
@@ -192,7 +205,7 @@ const generarCatalogoPDF = async (req, res) => {
       const grupo = productos.slice(i, i + PER_PAGE)
       doc.addPage()
 
-      await drawHeader()
+      drawHeader()
 
       for (let j = 0; j < grupo.length; j++) {
         const prod = grupo[j]
@@ -204,8 +217,8 @@ const generarCatalogoPDF = async (req, res) => {
         // Fondo tarjeta
         doc.rect(x, y, CARD_W, CARD_H).fill('white')
 
-        // Imagen
-        const imgUrl = prod.imagen_medium || prod.imagen_principal
+        // Imagen producto
+        const imgUrl = prod.imagen_thumb || prod.imagen_medium || prod.imagen_principal
         if (imgUrl) {
           const imgBuf = await fetchImageBuffer(imgUrl)
           if (imgBuf) {
@@ -217,7 +230,9 @@ const generarCatalogoPDF = async (req, res) => {
                 align: 'center',
                 valign: 'center'
               })
-            } catch {}
+            } catch(e) { console.error('Product img error:', prod.codigo, e.message) }
+          } else {
+            console.log('No image buffer for:', prod.codigo, imgUrl)
           }
         }
 
@@ -247,7 +262,7 @@ const generarCatalogoPDF = async (req, res) => {
 
     doc.end()
   } catch (e) {
-    console.error(e)
+    console.error('PDF generation error:', e)
     res.status(500).json({ message: 'Error al generar PDF' })
   }
 }
