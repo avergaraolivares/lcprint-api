@@ -1,30 +1,23 @@
 const multer  = require('multer')
-const path    = require('path')
 const sharp   = require('sharp')
-const fs      = require('fs')
 const { v4: uuidv4 } = require('uuid')
+const cloudinary = require('cloudinary').v2
 
-const UPLOAD_PATH = process.env.UPLOAD_PATH || './uploads'
-
-// Asegurar que existan las carpetas
-;['products', 'company'].forEach(dir => {
-  const full = path.join(UPLOAD_PATH, dir)
-  if (!fs.existsSync(full)) fs.mkdirSync(full, { recursive: true })
+// Configurar Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 })
 
 const storage = multer.memoryStorage()
 
-// ── Filtro para imágenes ──────────────────────────────────────
 const fileFilter = (req, file, cb) => {
   const allowed = ['image/jpeg','image/jpg','image/png','image/webp']
-  if (allowed.includes(file.mimetype)) {
-    cb(null, true)
-  } else {
-    cb(new Error('Solo se permiten imágenes JPG, PNG o WebP'), false)
-  }
+  if (allowed.includes(file.mimetype)) cb(null, true)
+  else cb(new Error('Solo se permiten imágenes JPG, PNG o WebP'), false)
 }
 
-// ── Filtro para Excel ─────────────────────────────────────────
 const excelFilter = (req, file, cb) => {
   const allowedMimes = [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -33,44 +26,52 @@ const excelFilter = (req, file, cb) => {
     'application/zip',
   ]
   const isExcel = file.originalname.match(/\.(xlsx|xls)$/i)
-  if (allowedMimes.includes(file.mimetype) || isExcel) {
-    cb(null, true)
-  } else {
-    cb(new Error('Solo se permiten archivos Excel (.xlsx, .xls)'), false)
-  }
+  if (allowedMimes.includes(file.mimetype) || isExcel) cb(null, true)
+  else cb(new Error('Solo se permiten archivos Excel (.xlsx, .xls)'), false)
 }
 
-// ── Multer para imágenes ──────────────────────────────────────
 const upload = multer({
   storage,
   fileFilter,
   limits: { fileSize: Number(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024 },
 })
 
-// ── Multer para Excel ─────────────────────────────────────────
 const uploadExcel = multer({
   storage,
   fileFilter: excelFilter,
   limits: { fileSize: 10 * 1024 * 1024 },
 })
 
-// ── Procesar y guardar imagen con sharp ───────────────────────
+// ── Procesar y subir imagen a Cloudinary ──────────────────────
 const processImage = async (buffer, folder, width = 800) => {
-  const filename = `${uuidv4()}.webp`
-  const dest     = path.join(UPLOAD_PATH, folder, filename)
-
-  await sharp(buffer)
+  const webpBuffer = await sharp(buffer)
     .resize(width, null, { withoutEnlargement: true })
     .webp({ quality: 85 })
-    .toFile(dest)
+    .toBuffer()
 
-  return `/uploads/${folder}/${filename}`
+  return new Promise((resolve, reject) => {
+    const publicId = `lcprint/${folder}/${uuidv4()}`
+    cloudinary.uploader.upload_stream(
+      { public_id: publicId, resource_type: 'image', format: 'webp' },
+      (error, result) => {
+        if (error) reject(error)
+        else resolve(result.secure_url)
+      }
+    ).end(webpBuffer)
+  })
 }
 
-const deleteImage = (url) => {
-  if (!url) return
-  const filepath = path.join(UPLOAD_PATH, url.replace('/uploads/', ''))
-  if (fs.existsSync(filepath)) fs.unlinkSync(filepath)
+const deleteImage = async (url) => {
+  if (!url || !url.includes('cloudinary')) return
+  try {
+    const parts = url.split('/')
+    const filename = parts[parts.length - 1].split('.')[0]
+    const folder = parts[parts.length - 2]
+    const subfolder = parts[parts.length - 3]
+    await cloudinary.uploader.destroy(`${subfolder}/${folder}/${filename}`)
+  } catch (e) {
+    console.error('Error eliminando imagen de Cloudinary:', e)
+  }
 }
 
 module.exports = { upload, uploadExcel, processImage, deleteImage }
