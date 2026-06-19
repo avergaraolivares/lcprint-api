@@ -36,22 +36,9 @@ const processBanner = async (buffer, folder) => {
   return urls
 }
 
-// Procesar logo conservando transparencia/fondo sin recortar a cuadrado (igual que banner pero más liviano)
-const processLogoPago = async (buffer, folder) => {
-  const meta  = await sharp(buffer).metadata()
-  const ratio = Math.min(1, 500 / meta.width)
-  const nw    = Math.round(meta.width  * ratio)
-  const nh    = Math.round(meta.height * ratio)
-  const uid   = uuidv4()
-  const dir   = path.join(UPLOAD_PATH, folder)
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  const file = `${uid}.webp`
-  await sharp(buffer)
-    .resize(nw, nh, { fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 90 })
-    .toFile(path.join(dir, file))
-  return `/uploads/${folder}/${file}`
-}
+// Logos de confianza usan el mismo helper de subida a Cloudinary que el resto
+// de imágenes del sitio (processImage ya sube a Cloudinary, no a disco local).
+const processLogoPago = async (buffer, folder) => processImage(buffer, folder, 400)
 
 // ── Configuración empresa ─────────────────────────────────────
 const getConfig = async (req, res) => {
