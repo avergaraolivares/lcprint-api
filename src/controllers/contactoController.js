@@ -146,7 +146,10 @@ const generarCatalogoPDF = async (req, res) => {
     const LOGO_W   = 110
 
     const drawHeader = () => {
-      // Banner cubre todo el ancho como fondo
+      // Clip estricto para que el banner nunca se salga del área del header
+      doc.save()
+      doc.rect(0, 0, W, HEADER_H).clip()
+
       if (bannerBuf) {
         try {
           doc.image(bannerBuf, 0, 0, {
@@ -163,6 +166,7 @@ const generarCatalogoPDF = async (req, res) => {
       } else {
         doc.rect(0, 0, W, HEADER_H).fill('#003566')
       }
+      doc.restore()
 
       // Panel amarillo izquierdo con el logo, por ENCIMA del banner
       doc.rect(0, 0, LOGO_W, HEADER_H).fill(AMARILLO)
@@ -213,13 +217,14 @@ const generarCatalogoPDF = async (req, res) => {
     }
 
     const COLS      = 4
-    const PER_PAGE  = COLS * 2
+    const ROWS      = 2
+    const PER_PAGE  = COLS * ROWS
     const FOOTER_H  = 45
-    const GAP       = 5
+    const GAP       = 10
     const SEP_H     = 8
     const CONTENT_H = H - HEADER_H - SEP_H - FOOTER_H - GAP * 3
     const CARD_W    = (W - MARGIN * 2 - (COLS - 1) * GAP) / COLS
-    const CARD_H    = (CONTENT_H - GAP) / 2
+    const CARD_H    = (CONTENT_H - GAP * (ROWS - 1)) / ROWS
     const IMG_H     = CARD_H * 0.56
 
     for (let i = 0; i < productos.length; i += PER_PAGE) {
