@@ -61,15 +61,9 @@ const marcarLeido = async (req, res) => {
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────
-// Convierte una URL de Cloudinary para forzar salida JPEG (pdfkit no soporta webp)
-const toJpgUrl = (url) => {
-  if (!url || !url.includes('/upload/')) return url
-  return url.replace('/upload/', '/upload/f_jpg,q_auto/')
-}
-
-const fetchImageBuffer = async (urlRaw) => {
-  const url = toJpgUrl(urlRaw)
+// ── Helpers de imágenes ──────────────────────────────────────
+// Descarga un buffer crudo desde una URL (sin transformar)
+const fetchRaw = async (url) => {
   if (!url) return null
   try {
     const https = require('https')
@@ -81,11 +75,18 @@ const fetchImageBuffer = async (urlRaw) => {
         res.on('data', c => bufs.push(c))
         res.on('end', () => resolve(Buffer.concat(bufs)))
       })
-      r.on('error', (e) => { console.error('fetchImage error:', url, e.message); resolve(null) })
-      r.on('timeout', () => { console.error('fetchImage timeout:', url); r.destroy(); resolve(null) })
+      r.on('error', (e) => { console.error('fetchRaw error:', url, e.message); resolve(null) })
+      r.on('timeout', () => { console.error('fetchRaw timeout:', url); r.destroy(); resolve(null) })
     })
-  } catch(e) { console.error('fetchImage catch:', e.message); return null }
+  } catch(e) { console.error('fetchRaw catch:', e.message); return null }
 }
+
+// Para imágenes de productos: fuerza JPEG vía Cloudinary (pdfkit no soporta webp)
+const toJpgUrl = (url) => {
+  if (!url || !url.includes('/upload/')) return url
+  return url.replace('/upload/', '/upload/f_jpg,q_auto/')
+}
+const fetchProductImage = async (url) => fetchRaw(toJpgUrl(url))
 
 // ── Generador PDF ─────────────────────────────────────────────
 const BANNER_URL = 'https://res.cloudinary.com/db3hrbj6s/image/upload/v1781800861/lcprint/catalogo/lyu2fot10bdbapwwrkk8.png'
@@ -116,10 +117,10 @@ const generarCatalogoPDF = async (req, res) => {
 
     const [productos] = await db.query(queryProds, params)
 
-    console.log('Descargando banner y logo...')
+    console.log('Descargando banner y logo (PNG original)...')
     const [bannerBuf, logoBuf] = await Promise.all([
-      fetchImageBuffer(BANNER_URL),
-      fetchImageBuffer(LOGO_URL),
+      fetchRaw(BANNER_URL),
+      fetchRaw(LOGO_URL),
     ])
     console.log('Banner:', bannerBuf ? bannerBuf.length + ' bytes' : 'NULL')
     console.log('Logo:', logoBuf ? logoBuf.length + ' bytes' : 'NULL')
@@ -141,37 +142,46 @@ const generarCatalogoPDF = async (req, res) => {
     const AZUL     = '#00AEEF'
     const NEGRO    = '#1A1A1A'
     const GRIS     = '#555555'
-    const HEADER_H = 120
+    const HEADER_H = 110
+    const LOGO_W   = 110
 
     const drawHeader = () => {
-      // Fondo amarillo para zona del logo
-      doc.rect(0, 0, 110, HEADER_H).fill(AMARILLO)
+      // Banner cubre todo el ancho como fondo
+      if (bannerBuf) {
+        try {
+          doc.image(bannerBuf, 0, 0, {
+            width: W,
+            height: HEADER_H,
+            cover: [W, HEADER_H],
+            align: 'center',
+            valign: 'center'
+          })
+        } catch(e) {
+          console.error('Banner draw error:', e.message)
+          doc.rect(0, 0, W, HEADER_H).fill('#003566')
+        }
+      } else {
+        doc.rect(0, 0, W, HEADER_H).fill('#003566')
+      }
 
-      // Logo en zona amarilla
+      // Panel amarillo izquierdo con el logo, por ENCIMA del banner
+      doc.rect(0, 0, LOGO_W, HEADER_H).fill(AMARILLO)
       if (logoBuf) {
         try {
-          doc.image(logoBuf, 5, 10, { width: 100, height: 100, fit: [100, 100] })
+          doc.image(logoBuf, 8, 8, { width: LOGO_W - 16, height: HEADER_H - 16, fit: [LOGO_W - 16, HEADER_H - 16] })
         } catch(e) { console.error('Logo draw error:', e.message) }
       }
 
-      // Banner ocupa el resto del header
-      if (bannerBuf) {
-        try {
-          doc.image(bannerBuf, 110, 0, {
-            width: W - 110,
-            height: HEADER_H,
-            cover: [W - 110, HEADER_H]
-          })
-        } catch(e) { console.error('Banner draw error:', e.message) }
-      } else {
-        doc.rect(110, 0, W - 110, HEADER_H).fill('#003566')
-      }
+      // Overlay oscuro semitransparente solo detrás del texto, a la derecha del logo
+      doc.save()
+      doc.fillOpacity(0.55)
+      doc.rect(LOGO_W, 0, W - LOGO_W, HEADER_H).fill('#001F3F')
+      doc.restore()
 
-      // Texto sobre el banner
-      doc.font('Helvetica-Bold').fontSize(24).fillColor('white')
-         .text('Catálogo de Productos', 120, 35, { width: W - 140 })
-      doc.font('Helvetica').fontSize(11).fillColor('white')
-         .text(`${config.nombre || 'LC Print SpA'} · ${new Date().toLocaleDateString('es-CL')}`, 120, 68, { width: W - 140 })
+      doc.font('Helvetica-Bold').fontSize(22).fillColor('white')
+         .text('Catálogo de Productos', LOGO_W + 12, 32, { width: W - LOGO_W - 24 })
+      doc.font('Helvetica').fontSize(10).fillColor('white')
+         .text(`${config.nombre || 'LC Print SpA'} · ${new Date().toLocaleDateString('es-CL')}`, LOGO_W + 12, 62, { width: W - LOGO_W - 24 })
     }
 
     const drawFooter = () => {
@@ -221,13 +231,11 @@ const generarCatalogoPDF = async (req, res) => {
         const x    = MARGIN + col * (CARD_W + GAP)
         const y    = HEADER_H + GAP + row * (CARD_H + GAP)
 
-        // Fondo tarjeta
         doc.rect(x, y, CARD_W, CARD_H).fill('white')
 
-        // Imagen producto
         const imgUrl = prod.imagen_thumb || prod.imagen_medium || prod.imagen_principal
         if (imgUrl) {
-          const imgBuf = await fetchImageBuffer(imgUrl)
+          const imgBuf = await fetchProductImage(imgUrl)
           if (imgBuf) {
             try {
               doc.image(imgBuf, x + 2, y + 2, {
@@ -243,22 +251,18 @@ const generarCatalogoPDF = async (req, res) => {
           }
         }
 
-        // Separador
         doc.moveTo(x, y + IMG_H).lineTo(x + CARD_W, y + IMG_H)
            .strokeColor('#DDDDDD').lineWidth(0.5).stroke()
 
         const tY = y + IMG_H + 4
         const tW = CARD_W - 6
 
-        // Nombre
         doc.font('Helvetica-Bold').fontSize(7).fillColor(NEGRO)
            .text(prod.nombre.toUpperCase(), x + 3, tY, { width: tW, height: 22, ellipsis: true })
 
-        // SKU
         doc.font('Helvetica').fontSize(6.5).fillColor(GRIS)
            .text(`SKU: ${prod.codigo}`, x + 3, tY + 24, { width: tW })
 
-        // Precio
         const precio = prod.precio || 'Consultar'
         doc.font('Helvetica-Bold').fontSize(8).fillColor(AZUL)
            .text(`PRECIO: ${precio}`, x + 3, tY + 34, { width: tW })
