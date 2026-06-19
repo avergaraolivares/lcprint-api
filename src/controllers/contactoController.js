@@ -182,6 +182,9 @@ const generarCatalogoPDF = async (req, res) => {
          .text('Catálogo de Productos', LOGO_W + 12, 45, { width: W - LOGO_W - 24 })
       doc.font('Helvetica').fontSize(10).fillColor('white')
          .text(`${config.nombre || 'LC Print SpA'} · ${new Date().toLocaleDateString('es-CL')}`, LOGO_W + 12, 78, { width: W - LOGO_W - 24 })
+
+      // Franja gris de separación clara entre header y la grilla de productos
+      doc.rect(0, HEADER_H, W, 8).fill('#F0F0F0')
     }
 
     const drawFooter = () => {
@@ -213,7 +216,8 @@ const generarCatalogoPDF = async (req, res) => {
     const PER_PAGE  = COLS * 2
     const FOOTER_H  = 45
     const GAP       = 5
-    const CONTENT_H = H - HEADER_H - FOOTER_H - GAP * 3
+    const SEP_H     = 8
+    const CONTENT_H = H - HEADER_H - SEP_H - FOOTER_H - GAP * 3
     const CARD_W    = (W - MARGIN * 2 - (COLS - 1) * GAP) / COLS
     const CARD_H    = (CONTENT_H - GAP) / 2
     const IMG_H     = CARD_H * 0.56
@@ -229,7 +233,7 @@ const generarCatalogoPDF = async (req, res) => {
         const col  = j % COLS
         const row  = Math.floor(j / COLS)
         const x    = MARGIN + col * (CARD_W + GAP)
-        const y    = HEADER_H + GAP + row * (CARD_H + GAP)
+        const y    = HEADER_H + SEP_H + GAP + row * (CARD_H + GAP)
 
         doc.rect(x, y, CARD_W, CARD_H).fill('white')
 
