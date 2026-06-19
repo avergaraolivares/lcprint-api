@@ -62,7 +62,14 @@ const marcarLeido = async (req, res) => {
 }
 
 // ── Helpers ───────────────────────────────────────────────────
-const fetchImageBuffer = async (url) => {
+// Convierte una URL de Cloudinary para forzar salida JPEG (pdfkit no soporta webp)
+const toJpgUrl = (url) => {
+  if (!url || !url.includes('/upload/')) return url
+  return url.replace('/upload/', '/upload/f_jpg,q_auto/')
+}
+
+const fetchImageBuffer = async (urlRaw) => {
+  const url = toJpgUrl(urlRaw)
   if (!url) return null
   try {
     const https = require('https')
