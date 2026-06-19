@@ -45,6 +45,10 @@ router.delete('/admin/productos/:id/imagenes/:imgId', auth, prodCtrl.eliminarIma
 router.get('/configuracion',       contCtrl.getConfig)
 router.put('/admin/configuracion', auth, soloAdmin, upload.single('logo'), contCtrl.updateConfig)
 
+// ── Logos de confianza (Webpay Plus + Garantía) ────────────────
+router.get('/logos-confianza',       contCtrl.getLogosConfianza)
+router.put('/admin/logos-confianza', auth, soloAdmin, upload.any(), contCtrl.updateLogosConfianza)
+
 // ── Contenido inicio ──────────────────────────────────────────
 router.get('/contenido/inicio',       contCtrl.getInicio)
 router.put('/admin/contenido/inicio', auth, upload.single('banner'), contCtrl.updateInicio)

@@ -36,6 +36,23 @@ const processBanner = async (buffer, folder) => {
   return urls
 }
 
+// Procesar logo conservando transparencia/fondo sin recortar a cuadrado (igual que banner pero más liviano)
+const processLogoPago = async (buffer, folder) => {
+  const meta  = await sharp(buffer).metadata()
+  const ratio = Math.min(1, 500 / meta.width)
+  const nw    = Math.round(meta.width  * ratio)
+  const nh    = Math.round(meta.height * ratio)
+  const uid   = uuidv4()
+  const dir   = path.join(UPLOAD_PATH, folder)
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  const file = `${uid}.webp`
+  await sharp(buffer)
+    .resize(nw, nh, { fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: 90 })
+    .toFile(path.join(dir, file))
+  return `/uploads/${folder}/${file}`
+}
+
 // ── Configuración empresa ─────────────────────────────────────
 const getConfig = async (req, res) => {
   try {
@@ -69,6 +86,61 @@ const updateConfig = async (req, res) => {
   } catch (e) {
     console.error(e)
     res.status(500).json({ message: 'Error al actualizar configuración' })
+  }
+}
+
+// ── Logos de confianza (Webpay Plus + Garantía) ─────────────────
+// Se reciben hasta 2 archivos en una sola petición multipart con
+// field names: logo_pago, logo_garantia
+const getLogosConfianza = async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT logo_pago, logo_garantia FROM configuracion_empresa WHERE id = 1`
+    )
+    res.json(rows[0] || {})
+  } catch (e) {
+    res.status(500).json({ message: 'Error al obtener logos' })
+  }
+}
+
+const updateLogosConfianza = async (req, res) => {
+  try {
+    const [curr] = await db.query(
+      `SELECT logo_pago, logo_garantia FROM configuracion_empresa WHERE id = 1`
+    )
+    const actuales = curr[0] || {}
+    const campos = ['logo_pago', 'logo_garantia']
+
+    const sets    = []
+    const valores = []
+
+    for (const campo of campos) {
+      const file = req.files?.find(f => f.fieldname === campo)
+      if (file) {
+        if (actuales[campo]) deleteImage(actuales[campo])
+        const nuevaUrl = await processLogoPago(file.buffer, 'sellos')
+        sets.push(`${campo} = ?`)
+        valores.push(nuevaUrl)
+      }
+    }
+
+    // Permite eliminar uno específico vía body.eliminar = 'logo_pago' | 'logo_garantia'
+    if (req.body.eliminar && campos.includes(req.body.eliminar)) {
+      const campo = req.body.eliminar
+      if (actuales[campo]) deleteImage(actuales[campo])
+      sets.push(`${campo} = NULL`)
+    }
+
+    if (sets.length === 0) return res.json(actuales)
+
+    await db.query(`UPDATE configuracion_empresa SET ${sets.join(', ')} WHERE id = 1`, valores)
+    const [updated] = await db.query(
+      `SELECT logo_pago, logo_garantia FROM configuracion_empresa WHERE id = 1`
+    )
+    res.json(updated[0])
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ message: 'Error al actualizar logos' })
   }
 }
 
@@ -172,4 +244,9 @@ const updateNosotros = async (req, res) => {
   }
 }
 
-module.exports = { getConfig, updateConfig, getInicio, updateInicio, getNosotros, updateNosotros }
+module.exports = {
+  getConfig, updateConfig,
+  getLogosConfianza, updateLogosConfianza,
+  getInicio, updateInicio,
+  getNosotros, updateNosotros,
+}
