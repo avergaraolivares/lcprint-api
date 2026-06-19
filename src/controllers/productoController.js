@@ -38,7 +38,7 @@ const listar = async (req, res) => {
        FROM productos p
        JOIN categorias c ON p.categoria_id = c.id
        ${where}
-       ORDER BY p.destacado DESC, c.orden, p.orden, p.nombre
+       ORDER BY p.nombre ASC
        LIMIT ? OFFSET ?`,
       [...params, Number(limit), Number(offset)]
     )
