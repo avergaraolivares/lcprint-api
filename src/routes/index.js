@@ -10,6 +10,7 @@ const contCtrl     = require('../controllers/contenidoController')
 const contactCtrl  = require('../controllers/contactoController')
 const userCtrl     = require('../controllers/usuarioController')
 const disenioCtrl  = require('../controllers/disenioController')
+const exportCtrl   = require('../controllers/exportController')
 
 // ── Auth ──────────────────────────────────────────────────────
 router.post('/auth/login',    authCtrl.login)
@@ -31,6 +32,7 @@ router.get('/productos/:id',  prodCtrl.obtener)
 
 // ── Productos (admin) ─────────────────────────────────────────
 router.post  ('/admin/productos/importar',            auth, uploadExcel.single('archivo'), prodCtrl.importarExcel)
+router.get   ('/admin/productos/exportar',             auth, exportCtrl.exportarProductos)
 router.get   ('/admin/productos',                     auth, prodCtrl.listarAdmin)
 router.get   ('/admin/productos/:id',                 auth, prodCtrl.obtenerAdmin)
 router.post  ('/admin/productos',                     auth, upload.single('imagen'), prodCtrl.crear)
