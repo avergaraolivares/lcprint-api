@@ -142,7 +142,7 @@ const generarCatalogoPDF = async (req, res) => {
     const AZUL     = '#00AEEF'
     const NEGRO    = '#1A1A1A'
     const GRIS     = '#555555'
-    const HEADER_H = 110
+    const HEADER_H = 140
     const LOGO_W   = 110
 
     const drawHeader = () => {
@@ -179,9 +179,9 @@ const generarCatalogoPDF = async (req, res) => {
       doc.restore()
 
       doc.font('Helvetica-Bold').fontSize(22).fillColor('white')
-         .text('Catálogo de Productos', LOGO_W + 12, 32, { width: W - LOGO_W - 24 })
+         .text('Catálogo de Productos', LOGO_W + 12, 45, { width: W - LOGO_W - 24 })
       doc.font('Helvetica').fontSize(10).fillColor('white')
-         .text(`${config.nombre || 'LC Print SpA'} · ${new Date().toLocaleDateString('es-CL')}`, LOGO_W + 12, 62, { width: W - LOGO_W - 24 })
+         .text(`${config.nombre || 'LC Print SpA'} · ${new Date().toLocaleDateString('es-CL')}`, LOGO_W + 12, 78, { width: W - LOGO_W - 24 })
     }
 
     const drawFooter = () => {
