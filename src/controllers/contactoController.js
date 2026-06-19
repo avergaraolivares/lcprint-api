@@ -172,7 +172,7 @@ const generarCatalogoPDF = async (req, res) => {
       doc.rect(0, 0, LOGO_W, HEADER_H).fill(AMARILLO)
       if (logoBuf) {
         try {
-          doc.image(logoBuf, 8, 8, { width: LOGO_W - 16, height: HEADER_H - 16, fit: [LOGO_W - 16, HEADER_H - 16] })
+          doc.image(logoBuf, 8, 8, { width: LOGO_W - 16, height: HEADER_H - 16, fit: [LOGO_W - 16, HEADER_H - 16], align: 'center', valign: 'center' })
         } catch(e) { console.error('Logo draw error:', e.message) }
       }
 
