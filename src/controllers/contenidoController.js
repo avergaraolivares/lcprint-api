@@ -220,6 +220,9 @@ const updateInicio = async (req, res) => {
       extraSet  += ', spotlight3_banner = ?'
       extraVals.push(url)
     }
+
+    // Spotlight 2 — imagen categoría
+    const sp2ImgFile = getFile('spotlight2_imagen')
     if (sp2ImgFile) {
       if (curr[0]?.spotlight2_imagen) deleteImage(curr[0].spotlight2_imagen)
       const url = await processImageFull(sp2ImgFile.buffer, 'spotlight')
