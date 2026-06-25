@@ -279,19 +279,35 @@ const updateNosotros = async (req, res) => {
 // ── Spotlight de categoría (soporta num=1 y num=2) ────────────
 const getSpotlight = async (req, res) => {
   const num = Number(req.query.num) || 1
-  const prefix = num === 2 ? 'spotlight2_' : 'spotlight_'
 
   try {
-    const [inicioRows] = await db.query(
-      `SELECT ${prefix}categoria_id as cat_id, ${prefix}titulo as titulo,
-              ${prefix}desc as desc, ${prefix}imagen as imagen,
-              ${prefix}banner as banner
-       FROM contenido_inicio WHERE id = 1`
-    )
-    const inicio = inicioRows[0] || {}
-    if (!inicio.cat_id) return res.json(null)
+    let catId, titulo, desc, imagen, banner
 
-    const [catRows] = await db.query('SELECT * FROM categorias WHERE id = ?', [inicio.cat_id])
+    if (num === 2) {
+      const [rows] = await db.query(
+        'SELECT spotlight2_categoria_id, spotlight2_titulo, spotlight2_desc, spotlight2_imagen, spotlight2_banner FROM contenido_inicio WHERE id = 1'
+      )
+      const r = rows[0] || {}
+      catId  = r.spotlight2_categoria_id
+      titulo = r.spotlight2_titulo
+      desc   = r.spotlight2_desc
+      imagen = r.spotlight2_imagen
+      banner = r.spotlight2_banner
+    } else {
+      const [rows] = await db.query(
+        'SELECT spotlight_categoria_id, spotlight_titulo, spotlight_desc, spotlight_imagen, spotlight_banner FROM contenido_inicio WHERE id = 1'
+      )
+      const r = rows[0] || {}
+      catId  = r.spotlight_categoria_id
+      titulo = r.spotlight_titulo
+      desc   = r.spotlight_desc
+      imagen = r.spotlight_imagen
+      banner = r.spotlight_banner
+    }
+
+    if (!catId) return res.json(null)
+
+    const [catRows] = await db.query('SELECT * FROM categorias WHERE id = ?', [catId])
     if (!catRows.length) return res.json(null)
     const categoria = catRows[0]
 
@@ -328,10 +344,10 @@ const getSpotlight = async (req, res) => {
 
     res.json({
       categoria,
-      titulo:   inicio.titulo  || categoria.nombre,
-      desc:     inicio.desc    || categoria.descripcion || '',
-      imagen:   inicio.imagen  || null,
-      banner:   inicio.banner  || null,
+      titulo:  titulo  || categoria.nombre,
+      desc:    desc    || categoria.descripcion || '',
+      imagen:  imagen  || null,
+      banner:  banner  || null,
       subcats, productos,
     })
   } catch (e) {
