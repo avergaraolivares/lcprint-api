@@ -150,6 +150,7 @@ const updateInicio = async (req, res) => {
       'beneficio3_titulo', 'beneficio3_desc', 'beneficio4_titulo', 'beneficio4_desc',
       'marcas', 'cta_titulo', 'cta_desc', 'cta_boton',
       'seccion_categorias_titulo', 'seccion_destacados_titulo',
+      'spotlight_categoria_id', 'spotlight_titulo', 'spotlight_desc',
     ]
 
     const sets    = campos.map(c => `${c} = ?`).join(', ')
@@ -231,9 +232,50 @@ const updateNosotros = async (req, res) => {
   }
 }
 
+// ── Spotlight de categoría ────────────────────────────────────
+const getSpotlight = async (req, res) => {
+  try {
+    const [inicioRows] = await db.query(
+      'SELECT spotlight_categoria_id, spotlight_titulo, spotlight_desc FROM contenido_inicio WHERE id = 1'
+    )
+    const inicio = inicioRows[0] || {}
+    if (!inicio.spotlight_categoria_id) return res.json(null)
+
+    const [catRows] = await db.query(
+      'SELECT * FROM categorias WHERE id = ?', [inicio.spotlight_categoria_id]
+    )
+    if (!catRows.length) return res.json(null)
+    const categoria = catRows[0]
+
+    const [subcats] = await db.query(
+      'SELECT * FROM categorias WHERE parent_id = ? AND activo = 1 ORDER BY orden, nombre',
+      [categoria.id]
+    )
+
+    const [productos] = await db.query(
+      `SELECT p.id, p.nombre, p.codigo, p.precio, p.imagen_thumb, p.imagen_principal,
+              c.nombre as categoria_nombre
+       FROM productos p
+       JOIN categorias c ON p.categoria_id = c.id
+       WHERE p.activo = 1
+         AND (c.id = ? OR c.parent_id = ?)
+       ORDER BY p.nombre ASC
+       LIMIT 12`,
+      [categoria.id, categoria.id]
+    )
+
+    res.json({ categoria, titulo: inicio.spotlight_titulo || categoria.nombre,
+      desc: inicio.spotlight_desc || categoria.descripcion || '', subcats, productos })
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ message: 'Error al obtener spotlight' })
+  }
+}
+
 module.exports = {
   getConfig, updateConfig,
   getLogosConfianza, updateLogosConfianza,
   getInicio, updateInicio,
   getNosotros, updateNosotros,
+  getSpotlight,
 }
