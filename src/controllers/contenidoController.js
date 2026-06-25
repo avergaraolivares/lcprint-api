@@ -154,6 +154,8 @@ const updateInicio = async (req, res) => {
       'spotlight_color_fondo', 'spotlight_color_texto',
       'spotlight2_categoria_id', 'spotlight2_titulo', 'spotlight2_desc',
       'spotlight2_color_fondo', 'spotlight2_color_texto',
+      'spotlight3_categoria_id', 'spotlight3_titulo', 'spotlight3_desc',
+      'spotlight3_color_fondo', 'spotlight3_color_texto',
     ]
 
     const sets    = campos.map(c => `${c} = ?`).join(', ')
@@ -167,7 +169,7 @@ const updateInicio = async (req, res) => {
     }
 
     const [curr] = await db.query(
-      'SELECT banner_imagen, banner_imagen_medium, banner_imagen_thumb, spotlight_imagen, spotlight_banner, spotlight2_imagen, spotlight2_banner FROM contenido_inicio WHERE id = 1'
+      'SELECT banner_imagen, banner_imagen_medium, banner_imagen_thumb, spotlight_imagen, spotlight_banner, spotlight2_imagen, spotlight2_banner, spotlight3_imagen, spotlight3_banner FROM contenido_inicio WHERE id = 1'
     )
 
     let extraSet  = ''
@@ -201,8 +203,23 @@ const updateInicio = async (req, res) => {
       extraVals.push(url)
     }
 
-    // Spotlight 2 — imagen categoría
-    const sp2ImgFile = getFile('spotlight2_imagen')
+    // Spotlight 3 — imagen categoría
+    const sp3ImgFile = getFile('spotlight3_imagen')
+    if (sp3ImgFile) {
+      if (curr[0]?.spotlight3_imagen) deleteImage(curr[0].spotlight3_imagen)
+      const url = await processImageFull(sp3ImgFile.buffer, 'spotlight')
+      extraSet  += ', spotlight3_imagen = ?'
+      extraVals.push(url)
+    }
+
+    // Spotlight 3 — banner
+    const sp3BannerFile = getFile('spotlight3_banner')
+    if (sp3BannerFile) {
+      if (curr[0]?.spotlight3_banner) deleteImage(curr[0].spotlight3_banner)
+      const url = await processImageFull(sp3BannerFile.buffer, 'spotlight')
+      extraSet  += ', spotlight3_banner = ?'
+      extraVals.push(url)
+    }
     if (sp2ImgFile) {
       if (curr[0]?.spotlight2_imagen) deleteImage(curr[0].spotlight2_imagen)
       const url = await processImageFull(sp2ImgFile.buffer, 'spotlight')
@@ -278,37 +295,49 @@ const updateNosotros = async (req, res) => {
 }
 
 
-// ── Spotlight de categoría (soporta num=1 y num=2) ────────────
+// ── Spotlight de categoría (soporta num=1, 2 y 3) ────────────
 const getSpotlight = async (req, res) => {
   const num = Number(req.query.num) || 1
 
   try {
     let catId, titulo, desc, imagen, banner, colorFondo, colorTexto
 
-    if (num === 2) {
+    if (num === 3) {
+      const [rows] = await db.query(
+        'SELECT spotlight3_categoria_id, spotlight3_titulo, spotlight3_desc, spotlight3_imagen, spotlight3_banner, spotlight3_color_fondo, spotlight3_color_texto FROM contenido_inicio WHERE id = 1'
+      )
+      const r = rows[0] || {}
+      catId      = r.spotlight3_categoria_id
+      titulo     = r.spotlight3_titulo
+      desc       = r.spotlight3_desc
+      imagen     = r.spotlight3_imagen
+      banner     = r.spotlight3_banner
+      colorFondo = r.spotlight3_color_fondo
+      colorTexto = r.spotlight3_color_texto
+    } else if (num === 2) {
       const [rows] = await db.query(
         'SELECT spotlight2_categoria_id, spotlight2_titulo, spotlight2_desc, spotlight2_imagen, spotlight2_banner, spotlight2_color_fondo, spotlight2_color_texto FROM contenido_inicio WHERE id = 1'
       )
       const r = rows[0] || {}
-      catId  = r.spotlight2_categoria_id
-      titulo = r.spotlight2_titulo
-      desc   = r.spotlight2_desc
-      imagen = r.spotlight2_imagen
-      banner = r.spotlight2_banner
-      colorFondo  = r.spotlight2_color_fondo
-      colorTexto  = r.spotlight2_color_texto
+      catId      = r.spotlight2_categoria_id
+      titulo     = r.spotlight2_titulo
+      desc       = r.spotlight2_desc
+      imagen     = r.spotlight2_imagen
+      banner     = r.spotlight2_banner
+      colorFondo = r.spotlight2_color_fondo
+      colorTexto = r.spotlight2_color_texto
     } else {
       const [rows] = await db.query(
         'SELECT spotlight_categoria_id, spotlight_titulo, spotlight_desc, spotlight_imagen, spotlight_banner, spotlight_color_fondo, spotlight_color_texto FROM contenido_inicio WHERE id = 1'
       )
       const r = rows[0] || {}
-      catId  = r.spotlight_categoria_id
-      titulo = r.spotlight_titulo
-      desc   = r.spotlight_desc
-      imagen = r.spotlight_imagen
-      banner = r.spotlight_banner
-      colorFondo  = r.spotlight_color_fondo
-      colorTexto  = r.spotlight_color_texto
+      catId      = r.spotlight_categoria_id
+      titulo     = r.spotlight_titulo
+      desc       = r.spotlight_desc
+      imagen     = r.spotlight_imagen
+      banner     = r.spotlight_banner
+      colorFondo = r.spotlight_color_fondo
+      colorTexto = r.spotlight_color_texto
     }
 
     if (!catId) return res.json(null)

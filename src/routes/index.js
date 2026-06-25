@@ -63,6 +63,8 @@ router.put('/admin/contenido/inicio', auth, upload.fields([
   { name: 'spotlight_banner',   maxCount: 1 },
   { name: 'spotlight2_imagen',  maxCount: 1 },
   { name: 'spotlight2_banner',  maxCount: 1 },
+  { name: 'spotlight3_imagen',  maxCount: 1 },
+  { name: 'spotlight3_banner',  maxCount: 1 },
 ]), contCtrl.updateInicio)
 
 // ── Contenido nosotros ────────────────────────────────────────
