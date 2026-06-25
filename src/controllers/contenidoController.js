@@ -151,6 +151,7 @@ const updateInicio = async (req, res) => {
       'marcas', 'cta_titulo', 'cta_desc', 'cta_boton',
       'seccion_categorias_titulo', 'seccion_destacados_titulo',
       'spotlight_categoria_id', 'spotlight_titulo', 'spotlight_desc',
+      'spotlight2_categoria_id', 'spotlight2_titulo', 'spotlight2_desc',
     ]
 
     const sets    = campos.map(c => `${c} = ?`).join(', ')
@@ -164,7 +165,7 @@ const updateInicio = async (req, res) => {
     }
 
     const [curr] = await db.query(
-      'SELECT banner_imagen, banner_imagen_medium, banner_imagen_thumb, spotlight_imagen, spotlight_banner FROM contenido_inicio WHERE id = 1'
+      'SELECT banner_imagen, banner_imagen_medium, banner_imagen_thumb, spotlight_imagen, spotlight_banner, spotlight2_imagen, spotlight2_banner FROM contenido_inicio WHERE id = 1'
     )
 
     let extraSet  = ''
@@ -195,6 +196,24 @@ const updateInicio = async (req, res) => {
       if (curr[0]?.spotlight_banner) deleteImage(curr[0].spotlight_banner)
       const url = await processImageFull(spBannerFile.buffer, 'spotlight')
       extraSet  += ', spotlight_banner = ?'
+      extraVals.push(url)
+    }
+
+    // Spotlight 2 — imagen categoría
+    const sp2ImgFile = getFile('spotlight2_imagen')
+    if (sp2ImgFile) {
+      if (curr[0]?.spotlight2_imagen) deleteImage(curr[0].spotlight2_imagen)
+      const url = await processImageFull(sp2ImgFile.buffer, 'spotlight')
+      extraSet  += ', spotlight2_imagen = ?'
+      extraVals.push(url)
+    }
+
+    // Spotlight 2 — banner
+    const sp2BannerFile = getFile('spotlight2_banner')
+    if (sp2BannerFile) {
+      if (curr[0]?.spotlight2_banner) deleteImage(curr[0].spotlight2_banner)
+      const url = await processImageFull(sp2BannerFile.buffer, 'spotlight')
+      extraSet  += ', spotlight2_banner = ?'
       extraVals.push(url)
     }
 
@@ -256,18 +275,23 @@ const updateNosotros = async (req, res) => {
   }
 }
 
-// ── Spotlight de categoría ────────────────────────────────────
+
+// ── Spotlight de categoría (soporta num=1 y num=2) ────────────
 const getSpotlight = async (req, res) => {
+  const num = Number(req.query.num) || 1
+  const prefix = num === 2 ? 'spotlight2_' : 'spotlight_'
+
   try {
     const [inicioRows] = await db.query(
-      'SELECT spotlight_categoria_id, spotlight_titulo, spotlight_desc, spotlight_imagen, spotlight_banner FROM contenido_inicio WHERE id = 1'
+      `SELECT ${prefix}categoria_id as cat_id, ${prefix}titulo as titulo,
+              ${prefix}desc as desc, ${prefix}imagen as imagen,
+              ${prefix}banner as banner
+       FROM contenido_inicio WHERE id = 1`
     )
     const inicio = inicioRows[0] || {}
-    if (!inicio.spotlight_categoria_id) return res.json(null)
+    if (!inicio.cat_id) return res.json(null)
 
-    const [catRows] = await db.query(
-      'SELECT * FROM categorias WHERE id = ?', [inicio.spotlight_categoria_id]
-    )
+    const [catRows] = await db.query('SELECT * FROM categorias WHERE id = ?', [inicio.cat_id])
     if (!catRows.length) return res.json(null)
     const categoria = catRows[0]
 
@@ -276,23 +300,40 @@ const getSpotlight = async (req, res) => {
       [categoria.id]
     )
 
-    const [productos] = await db.query(
-      `SELECT p.id, p.nombre, p.codigo, p.precio, p.imagen_thumb, p.imagen_principal,
-              c.nombre as categoria_nombre
-       FROM productos p
-       JOIN categorias c ON p.categoria_id = c.id
-       WHERE p.activo = 1
-         AND (c.id = ? OR c.parent_id = ?)
-       ORDER BY p.nombre ASC
-       LIMIT 12`,
-      [categoria.id, categoria.id]
-    )
+    const [spProds] = await db.query(`
+      SELECT p.id, p.nombre, p.codigo, p.precio,
+             p.imagen_thumb, p.imagen_principal,
+             c.nombre as categoria_nombre
+      FROM spotlight_productos sp
+      JOIN productos p ON sp.producto_id = p.id
+      JOIN categorias c ON p.categoria_id = c.id
+      WHERE p.activo = 1 AND sp.spotlight_num = ?
+      ORDER BY sp.orden ASC
+    `, [num])
 
-    res.json({ categoria, titulo: inicio.spotlight_titulo || categoria.nombre,
-      desc: inicio.spotlight_desc || categoria.descripcion || '',
-      imagen: inicio.spotlight_imagen || null,
-      banner: inicio.spotlight_banner || null,
-      subcats, productos })
+    let productos = spProds
+    if (!productos.length) {
+      const [fallback] = await db.query(
+        `SELECT p.id, p.nombre, p.codigo, p.precio,
+                p.imagen_thumb, p.imagen_principal,
+                c.nombre as categoria_nombre
+         FROM productos p
+         JOIN categorias c ON p.categoria_id = c.id
+         WHERE p.activo = 1 AND (c.id = ? OR c.parent_id = ?)
+         ORDER BY p.nombre ASC LIMIT 3`,
+        [categoria.id, categoria.id]
+      )
+      productos = fallback
+    }
+
+    res.json({
+      categoria,
+      titulo:   inicio.titulo  || categoria.nombre,
+      desc:     inicio.desc    || categoria.descripcion || '',
+      imagen:   inicio.imagen  || null,
+      banner:   inicio.banner  || null,
+      subcats, productos,
+    })
   } catch (e) {
     console.error(e)
     res.status(500).json({ message: 'Error al obtener spotlight' })

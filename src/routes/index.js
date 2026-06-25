@@ -49,13 +49,20 @@ router.put('/admin/configuracion', auth, soloAdmin, upload.single('logo'), contC
 router.get('/logos-confianza',       contCtrl.getLogosConfianza)
 router.put('/admin/logos-confianza', auth, soloAdmin, upload.any(), contCtrl.updateLogosConfianza)
 
+// ── Spotlight productos ───────────────────────────────────────
+const spotlightCtrl = require('../controllers/spotlightController')
+router.get('/spotlight-productos',        spotlightCtrl.getSpotlightProductos)
+router.post('/admin/spotlight-productos', auth, soloAdmin, spotlightCtrl.setSpotlightProductos)
+
 // ── Contenido inicio ──────────────────────────────────────────
 router.get('/contenido/inicio',           contCtrl.getInicio)
 router.get('/contenido/inicio/spotlight', contCtrl.getSpotlight)
 router.put('/admin/contenido/inicio', auth, upload.fields([
-  { name: 'banner',           maxCount: 1 },
-  { name: 'spotlight_imagen', maxCount: 1 },
-  { name: 'spotlight_banner', maxCount: 1 },
+  { name: 'banner',             maxCount: 1 },
+  { name: 'spotlight_imagen',   maxCount: 1 },
+  { name: 'spotlight_banner',   maxCount: 1 },
+  { name: 'spotlight2_imagen',  maxCount: 1 },
+  { name: 'spotlight2_banner',  maxCount: 1 },
 ]), contCtrl.updateInicio)
 
 // ── Contenido nosotros ────────────────────────────────────────
