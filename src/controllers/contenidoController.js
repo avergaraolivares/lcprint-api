@@ -156,27 +156,51 @@ const updateInicio = async (req, res) => {
     const sets    = campos.map(c => `${c} = ?`).join(', ')
     const valores = campos.map(c => req.body[c] ?? null)
 
-    // Procesar banner si se sube
-    let bannerSet = ''
-    let bannerVals = []
-    if (req.file) {
-      const [curr] = await db.query(
-        'SELECT banner_imagen, banner_imagen_medium, banner_imagen_thumb FROM contenido_inicio WHERE id = 1'
-      )
-      // Eliminar versiones anteriores
-      if (curr[0]) {
-        ;[curr[0].banner_imagen, curr[0].banner_imagen_medium, curr[0].banner_imagen_thumb]
-          .filter(Boolean).forEach(url => deleteImage(url))
-      }
+    // req.files puede ser un objeto (fields) o undefined (single)
+    const getFile = (name) => {
+      if (!req.files) return req.file || null
+      if (Array.isArray(req.files)) return req.files.find(f => f.fieldname === name) || null
+      return req.files[name]?.[0] || null
+    }
 
-      const urls = await processBanner(req.file.buffer, 'company')
-      bannerSet  = ', banner_imagen = ?, banner_imagen_medium = ?, banner_imagen_thumb = ?'
-      bannerVals = [urls.original, urls.medium, urls.thumb]
+    const [curr] = await db.query(
+      'SELECT banner_imagen, banner_imagen_medium, banner_imagen_thumb, spotlight_imagen, spotlight_banner FROM contenido_inicio WHERE id = 1'
+    )
+
+    let extraSet  = ''
+    let extraVals = []
+
+    // Banner principal
+    const bannerFile = getFile('banner')
+    if (bannerFile) {
+      ;[curr[0]?.banner_imagen, curr[0]?.banner_imagen_medium, curr[0]?.banner_imagen_thumb]
+        .filter(Boolean).forEach(url => deleteImage(url))
+      const urls = await processBanner(bannerFile.buffer, 'company')
+      extraSet  += ', banner_imagen = ?, banner_imagen_medium = ?, banner_imagen_thumb = ?'
+      extraVals.push(urls.original, urls.medium, urls.thumb)
+    }
+
+    // Imagen col 1 del spotlight (imagen categoría)
+    const spImgFile = getFile('spotlight_imagen')
+    if (spImgFile) {
+      if (curr[0]?.spotlight_imagen) deleteImage(curr[0].spotlight_imagen)
+      const url = await processImage(spImgFile.buffer, 'spotlight', 600)
+      extraSet  += ', spotlight_imagen = ?'
+      extraVals.push(url)
+    }
+
+    // Banner col 2 del spotlight
+    const spBannerFile = getFile('spotlight_banner')
+    if (spBannerFile) {
+      if (curr[0]?.spotlight_banner) deleteImage(curr[0].spotlight_banner)
+      const url = await processImage(spBannerFile.buffer, 'spotlight', 800)
+      extraSet  += ', spotlight_banner = ?'
+      extraVals.push(url)
     }
 
     await db.query(
-      `UPDATE contenido_inicio SET ${sets}${bannerSet} WHERE id = ?`,
-      [...valores, ...bannerVals, 1]
+      `UPDATE contenido_inicio SET ${sets}${extraSet} WHERE id = ?`,
+      [...valores, ...extraVals, 1]
     )
 
     const [updated] = await db.query('SELECT * FROM contenido_inicio WHERE id = 1')
@@ -236,7 +260,7 @@ const updateNosotros = async (req, res) => {
 const getSpotlight = async (req, res) => {
   try {
     const [inicioRows] = await db.query(
-      'SELECT spotlight_categoria_id, spotlight_titulo, spotlight_desc FROM contenido_inicio WHERE id = 1'
+      'SELECT spotlight_categoria_id, spotlight_titulo, spotlight_desc, spotlight_imagen, spotlight_banner FROM contenido_inicio WHERE id = 1'
     )
     const inicio = inicioRows[0] || {}
     if (!inicio.spotlight_categoria_id) return res.json(null)
@@ -265,7 +289,10 @@ const getSpotlight = async (req, res) => {
     )
 
     res.json({ categoria, titulo: inicio.spotlight_titulo || categoria.nombre,
-      desc: inicio.spotlight_desc || categoria.descripcion || '', subcats, productos })
+      desc: inicio.spotlight_desc || categoria.descripcion || '',
+      imagen: inicio.spotlight_imagen || null,
+      banner: inicio.spotlight_banner || null,
+      subcats, productos })
   } catch (e) {
     console.error(e)
     res.status(500).json({ message: 'Error al obtener spotlight' })

@@ -50,9 +50,13 @@ router.get('/logos-confianza',       contCtrl.getLogosConfianza)
 router.put('/admin/logos-confianza', auth, soloAdmin, upload.any(), contCtrl.updateLogosConfianza)
 
 // ── Contenido inicio ──────────────────────────────────────────
-router.get('/contenido/inicio',          contCtrl.getInicio)
+router.get('/contenido/inicio',           contCtrl.getInicio)
 router.get('/contenido/inicio/spotlight', contCtrl.getSpotlight)
-router.put('/admin/contenido/inicio',    auth, upload.single('banner'), contCtrl.updateInicio)
+router.put('/admin/contenido/inicio', auth, upload.fields([
+  { name: 'banner',           maxCount: 1 },
+  { name: 'spotlight_imagen', maxCount: 1 },
+  { name: 'spotlight_banner', maxCount: 1 },
+]), contCtrl.updateInicio)
 
 // ── Contenido nosotros ────────────────────────────────────────
 router.get('/contenido/nosotros',       contCtrl.getNosotros)
