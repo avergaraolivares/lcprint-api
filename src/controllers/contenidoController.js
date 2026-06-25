@@ -184,7 +184,7 @@ const updateInicio = async (req, res) => {
     const spImgFile = getFile('spotlight_imagen')
     if (spImgFile) {
       if (curr[0]?.spotlight_imagen) deleteImage(curr[0].spotlight_imagen)
-      const url = await processImage(spImgFile.buffer, 'spotlight', 600)
+      const url = await processImage(spImgFile.buffer, 'spotlight', 1200)
       extraSet  += ', spotlight_imagen = ?'
       extraVals.push(url)
     }
@@ -193,7 +193,7 @@ const updateInicio = async (req, res) => {
     const spBannerFile = getFile('spotlight_banner')
     if (spBannerFile) {
       if (curr[0]?.spotlight_banner) deleteImage(curr[0].spotlight_banner)
-      const url = await processImage(spBannerFile.buffer, 'spotlight', 800)
+      const url = await processImage(spBannerFile.buffer, 'spotlight', 1200)
       extraSet  += ', spotlight_banner = ?'
       extraVals.push(url)
     }

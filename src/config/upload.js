@@ -43,10 +43,12 @@ const uploadExcel = multer({
 })
 
 // ── Procesar y subir imagen a Cloudinary ──────────────────────
-const processImage = async (buffer, folder, width = 800) => {
+// width: ancho máximo en px (sin agrandar si la imagen es más pequeña)
+// quality: 92 por defecto para buena nitidez sin peso excesivo
+const processImage = async (buffer, folder, width = 1200, quality = 92) => {
   const webpBuffer = await sharp(buffer)
     .resize(width, null, { withoutEnlargement: true })
-    .webp({ quality: 85 })
+    .webp({ quality })
     .toBuffer()
 
   return new Promise((resolve, reject) => {
