@@ -63,6 +63,24 @@ const processImage = async (buffer, folder, width = 1200, quality = 92) => {
   })
 }
 
+// Subir imagen sin redimensionar — máxima calidad para banners/spotlight
+const processImageFull = async (buffer, folder) => {
+  const webpBuffer = await sharp(buffer)
+    .webp({ quality: 95, lossless: false })
+    .toBuffer()
+
+  return new Promise((resolve, reject) => {
+    const publicId = `lcprint/${folder}/${uuidv4()}`
+    cloudinary.uploader.upload_stream(
+      { public_id: publicId, resource_type: 'image', format: 'webp' },
+      (error, result) => {
+        if (error) reject(error)
+        else resolve(result.secure_url)
+      }
+    ).end(webpBuffer)
+  })
+}
+
 const deleteImage = async (url) => {
   if (!url || !url.includes('cloudinary')) return
   try {
@@ -76,4 +94,4 @@ const deleteImage = async (url) => {
   }
 }
 
-module.exports = { upload, uploadExcel, processImage, deleteImage }
+module.exports = { upload, uploadExcel, processImage, processImageFull, deleteImage }
