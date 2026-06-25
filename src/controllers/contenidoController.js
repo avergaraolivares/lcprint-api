@@ -151,7 +151,9 @@ const updateInicio = async (req, res) => {
       'marcas', 'cta_titulo', 'cta_desc', 'cta_boton',
       'seccion_categorias_titulo', 'seccion_destacados_titulo',
       'spotlight_categoria_id', 'spotlight_titulo', 'spotlight_desc',
+      'spotlight_color_fondo', 'spotlight_color_texto',
       'spotlight2_categoria_id', 'spotlight2_titulo', 'spotlight2_desc',
+      'spotlight2_color_fondo', 'spotlight2_color_texto',
     ]
 
     const sets    = campos.map(c => `${c} = ?`).join(', ')
@@ -281,11 +283,11 @@ const getSpotlight = async (req, res) => {
   const num = Number(req.query.num) || 1
 
   try {
-    let catId, titulo, desc, imagen, banner
+    let catId, titulo, desc, imagen, banner, colorFondo, colorTexto
 
     if (num === 2) {
       const [rows] = await db.query(
-        'SELECT spotlight2_categoria_id, spotlight2_titulo, spotlight2_desc, spotlight2_imagen, spotlight2_banner FROM contenido_inicio WHERE id = 1'
+        'SELECT spotlight2_categoria_id, spotlight2_titulo, spotlight2_desc, spotlight2_imagen, spotlight2_banner, spotlight2_color_fondo, spotlight2_color_texto FROM contenido_inicio WHERE id = 1'
       )
       const r = rows[0] || {}
       catId  = r.spotlight2_categoria_id
@@ -293,9 +295,11 @@ const getSpotlight = async (req, res) => {
       desc   = r.spotlight2_desc
       imagen = r.spotlight2_imagen
       banner = r.spotlight2_banner
+      colorFondo  = r.spotlight2_color_fondo
+      colorTexto  = r.spotlight2_color_texto
     } else {
       const [rows] = await db.query(
-        'SELECT spotlight_categoria_id, spotlight_titulo, spotlight_desc, spotlight_imagen, spotlight_banner FROM contenido_inicio WHERE id = 1'
+        'SELECT spotlight_categoria_id, spotlight_titulo, spotlight_desc, spotlight_imagen, spotlight_banner, spotlight_color_fondo, spotlight_color_texto FROM contenido_inicio WHERE id = 1'
       )
       const r = rows[0] || {}
       catId  = r.spotlight_categoria_id
@@ -303,6 +307,8 @@ const getSpotlight = async (req, res) => {
       desc   = r.spotlight_desc
       imagen = r.spotlight_imagen
       banner = r.spotlight_banner
+      colorFondo  = r.spotlight_color_fondo
+      colorTexto  = r.spotlight_color_texto
     }
 
     if (!catId) return res.json(null)
@@ -344,10 +350,12 @@ const getSpotlight = async (req, res) => {
 
     res.json({
       categoria,
-      titulo:  titulo  || categoria.nombre,
-      desc:    desc    || categoria.descripcion || '',
-      imagen:  imagen  || null,
-      banner:  banner  || null,
+      titulo:     titulo     || categoria.nombre,
+      desc:       desc       || categoria.descripcion || '',
+      imagen:     imagen     || null,
+      banner:     banner     || null,
+      colorFondo: colorFondo || null,
+      colorTexto: colorTexto || null,
       subcats, productos,
     })
   } catch (e) {
