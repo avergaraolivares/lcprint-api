@@ -14,29 +14,34 @@ const enviarContacto = async (req, res) => {
       [nombre, email, telefono || null, mensaje]
     )
 
-    if (process.env.MAIL_USER && process.env.MAIL_PASS) {
-      const transporter = nodemailer.createTransport({
-        host: process.env.MAIL_HOST || 'smtp.gmail.com',
-        port: Number(process.env.MAIL_PORT) || 587,
-        secure: false,
-        auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS }
-      })
-      await transporter.sendMail({
-        from:    process.env.MAIL_FROM,
-        to:      process.env.MAIL_TO,
-        subject: `Nuevo contacto de ${nombre} — LC Print`,
-        html: `
-          <h2>Nuevo mensaje de contacto</h2>
-          <p><strong>Nombre:</strong> ${nombre}</p>
-          <p><strong>Email:</strong> ${email}</p>
-          <p><strong>Teléfono:</strong> ${telefono || 'No indicado'}</p>
-          <p><strong>Mensaje:</strong></p>
-          <p>${mensaje}</p>
-        `
-      })
-    }
-
+    // Responder inmediatamente — el email se envía en segundo plano sin bloquear
     res.json({ message: 'Mensaje enviado correctamente' })
+
+    if (process.env.MAIL_USER && process.env.MAIL_PASS) {
+      try {
+        const transporter = nodemailer.createTransport({
+          host: process.env.MAIL_HOST || 'smtp.gmail.com',
+          port: Number(process.env.MAIL_PORT) || 587,
+          secure: false,
+          auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS }
+        })
+        await transporter.sendMail({
+          from:    process.env.MAIL_FROM,
+          to:      process.env.MAIL_TO,
+          subject: `Nuevo contacto de ${nombre} — LC Print`,
+          html: `
+            <h2>Nuevo mensaje de contacto</h2>
+            <p><strong>Nombre:</strong> ${nombre}</p>
+            <p><strong>Email:</strong> ${email}</p>
+            <p><strong>Teléfono:</strong> ${telefono || 'No indicado'}</p>
+            <p><strong>Mensaje:</strong></p>
+            <p>${mensaje}</p>
+          `
+        })
+      } catch (mailErr) {
+        console.error('Error enviando email de notificación:', mailErr.message)
+      }
+    }
   } catch (e) {
     console.error(e)
     res.status(500).json({ message: 'Error al enviar mensaje' })
