@@ -49,6 +49,14 @@ router.put('/admin/configuracion', auth, soloAdmin, upload.single('logo'), contC
 router.get('/logos-confianza',       contCtrl.getLogosConfianza)
 router.put('/admin/logos-confianza', auth, soloAdmin, upload.any(), contCtrl.updateLogosConfianza)
 
+// ── Banners slider ────────────────────────────────────────────
+const bannerCtrl = require('../controllers/bannerController')
+router.get   ('/banners',           bannerCtrl.listar)
+router.get   ('/admin/banners',     auth, bannerCtrl.listarAdmin)
+router.post  ('/admin/banners',     auth, soloAdmin, upload.single('imagen'), bannerCtrl.crear)
+router.put   ('/admin/banners/:id', auth, soloAdmin, upload.single('imagen'), bannerCtrl.actualizar)
+router.delete('/admin/banners/:id', auth, soloAdmin, bannerCtrl.eliminar)
+
 // ── Spotlight productos ───────────────────────────────────────
 const spotlightCtrl = require('../controllers/spotlightController')
 router.get('/spotlight-productos',        spotlightCtrl.getSpotlightProductos)
