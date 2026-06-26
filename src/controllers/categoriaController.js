@@ -1,4 +1,5 @@
 const db = require('../config/db')
+const { processImageFull, deleteImage } = require('../config/upload')
 
 const slugify = (text) =>
   text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -39,7 +40,6 @@ const crear = async (req, res) => {
     const { nombre, descripcion, orden = 0, parent_id = null } = req.body
     if (!nombre) return res.status(400).json({ message: 'El nombre es requerido' })
 
-    // Validar que la categoría padre exista (si se especificó)
     if (parent_id) {
       const [padre] = await db.query('SELECT id FROM categorias WHERE id = ?', [parent_id])
       if (!padre.length) return res.status(400).json({ message: 'La categoría padre seleccionada no existe' })
@@ -69,23 +69,20 @@ const actualizar = async (req, res) => {
     const [exist] = await db.query('SELECT * FROM categorias WHERE id = ?', [id])
     if (!exist.length) return res.status(404).json({ message: 'Categoría no encontrada' })
 
-    // No permitir que una categoría sea su propia padre, ni asignar como padre
-    // a una de sus propias subcategorías (evita ciclos)
     let nuevoParentId = exist[0].parent_id
     if (parent_id !== undefined) {
-      if (parent_id && Number(parent_id) === Number(id)) {
+      if (parent_id && Number(parent_id) === Number(id))
         return res.status(400).json({ message: 'Una categoría no puede ser su propia categoría padre' })
-      }
       if (parent_id) {
         const [padre] = await db.query('SELECT id, parent_id FROM categorias WHERE id = ?', [parent_id])
-        if (!padre.length) return res.status(400).json({ message: 'La categoría padre seleccionada no existe' })
-        if (padre[0].parent_id === Number(id)) {
-          return res.status(400).json({ message: 'No puedes asignar como padre a una subcategoría de esta misma categoría' })
-        }
+        if (!padre.length) return res.status(400).json({ message: 'La categoría padre no existe' })
+        if (padre[0].parent_id === Number(id))
+          return res.status(400).json({ message: 'No puedes asignar como padre a una subcategoría de esta categoría' })
       }
       nuevoParentId = parent_id || null
     }
 
+    // imagen_card — se sube por separado en la ruta /imagen-card
     const slug = nombre ? slugify(nombre) : exist[0].slug
     await db.query(
       'UPDATE categorias SET nombre=?, slug=?, descripcion=?, orden=?, activo=?, parent_id=? WHERE id=?',
@@ -97,6 +94,24 @@ const actualizar = async (req, res) => {
   } catch (e) {
     console.error(e)
     res.status(500).json({ message: 'Error al actualizar categoría' })
+  }
+}
+
+const actualizarImagenCard = async (req, res) => {
+  try {
+    const { id } = req.params
+    const [exist] = await db.query('SELECT * FROM categorias WHERE id = ?', [id])
+    if (!exist.length) return res.status(404).json({ message: 'Categoría no encontrada' })
+    if (!req.file) return res.status(400).json({ message: 'Imagen requerida' })
+
+    if (exist[0].imagen_card) deleteImage(exist[0].imagen_card)
+    const url = await processImageFull(req.file.buffer, 'categorias')
+    await db.query('UPDATE categorias SET imagen_card = ? WHERE id = ?', [url, id])
+    const [updated] = await db.query('SELECT * FROM categorias WHERE id = ?', [id])
+    res.json(updated[0])
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ message: 'Error al actualizar imagen' })
   }
 }
 
@@ -121,4 +136,4 @@ const eliminar = async (req, res) => {
   }
 }
 
-module.exports = { listar, obtener, crear, actualizar, eliminar }
+module.exports = { listar, obtener, crear, actualizar, actualizarImagenCard, eliminar }
