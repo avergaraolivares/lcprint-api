@@ -24,8 +24,9 @@ router.get('/categorias/:id', catCtrl.obtener)
 // ── Categorías (admin) ────────────────────────────────────────
 router.post  ('/admin/categorias',              auth, soloAdmin, catCtrl.crear)
 router.put   ('/admin/categorias/:id',          auth, soloAdmin, catCtrl.actualizar)
-router.post  ('/admin/categorias/:id/imagen-card', auth, soloAdmin, upload.single('imagen'), catCtrl.actualizarImagenCard)
-router.delete('/admin/categorias/:id',          auth, soloAdmin, catCtrl.eliminar)
+router.post  ('/admin/categorias/:id/imagen-card',    auth, soloAdmin, upload.single('imagen'), catCtrl.actualizarImagenCard)
+router.delete('/admin/categorias/:id/imagen-card',    auth, soloAdmin, catCtrl.eliminarImagenCard)
+router.delete('/admin/categorias/:id',               auth, soloAdmin, catCtrl.eliminar)
 
 // ── Productos (públicos) ──────────────────────────────────────
 router.get('/productos',      prodCtrl.listar)

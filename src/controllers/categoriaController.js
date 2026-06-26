@@ -136,4 +136,18 @@ const eliminar = async (req, res) => {
   }
 }
 
-module.exports = { listar, obtener, crear, actualizar, actualizarImagenCard, eliminar }
+const eliminarImagenCard = async (req, res) => {
+  try {
+    const { id } = req.params
+    const [exist] = await db.query('SELECT imagen_card FROM categorias WHERE id = ?', [id])
+    if (!exist.length) return res.status(404).json({ message: 'Categoría no encontrada' })
+    if (exist[0].imagen_card) deleteImage(exist[0].imagen_card)
+    await db.query('UPDATE categorias SET imagen_card = NULL WHERE id = ?', [id])
+    res.json({ message: 'Imagen eliminada' })
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ message: 'Error al eliminar imagen' })
+  }
+}
+
+module.exports = { listar, obtener, crear, actualizar, actualizarImagenCard, eliminarImagenCard, eliminar }
