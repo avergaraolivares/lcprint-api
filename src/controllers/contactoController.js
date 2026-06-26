@@ -5,9 +5,31 @@ const PDFDocument = require('pdfkit')
 // ── Contacto ──────────────────────────────────────────────────
 const enviarContacto = async (req, res) => {
   try {
-    const { nombre, email, telefono, mensaje } = req.body
+    const { nombre, email, telefono, mensaje, recaptchaToken } = req.body
     if (!nombre || !email || !mensaje)
       return res.status(400).json({ message: 'Nombre, email y mensaje son requeridos' })
+
+    // Verificar reCAPTCHA v3
+    if (process.env.RECAPTCHA_SECRET) {
+      if (!recaptchaToken)
+        return res.status(400).json({ message: 'Verificación de seguridad requerida' })
+
+      const verifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET}&response=${recaptchaToken}`
+      const https = require('https')
+      const captchaResult = await new Promise((resolve) => {
+        https.get(verifyUrl, (r) => {
+          let data = ''
+          r.on('data', c => data += c)
+          r.on('end', () => resolve(JSON.parse(data)))
+        }).on('error', () => resolve({ success: false, score: 0 }))
+      })
+
+      // Score menor a 0.5 = probable bot
+      if (!captchaResult.success || captchaResult.score < 0.5) {
+        console.warn('reCAPTCHA rechazado:', captchaResult)
+        return res.status(400).json({ message: 'Verificación de seguridad fallida. Intenta nuevamente.' })
+      }
+    }
 
     await db.query(
       'INSERT INTO contactos (nombre, email, telefono, mensaje) VALUES (?,?,?,?)',
