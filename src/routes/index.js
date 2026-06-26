@@ -83,8 +83,9 @@ router.put('/admin/contenido/nosotros', auth, upload.single('imagen'), contCtrl.
 
 // ── Contacto ──────────────────────────────────────────────────
 router.post('/contacto',                  contactCtrl.enviarContacto)
-router.get ('/admin/contactos',      auth, soloAdmin, contactCtrl.listarContactos)
+router.get ('/admin/contactos',           auth, soloAdmin, contactCtrl.listarContactos)
 router.put ('/admin/contactos/:id/leido', auth, soloAdmin, contactCtrl.marcarLeido)
+router.delete('/admin/contactos/:id',    auth, soloAdmin, contactCtrl.eliminarContacto)
 
 // ── Catálogo PDF ──────────────────────────────────────────────
 router.post('/catalogo/pdf', contactCtrl.generarCatalogoPDF)

@@ -292,4 +292,13 @@ const generarCatalogoPDF = async (req, res) => {
   }
 }
 
-module.exports = { enviarContacto, listarContactos, marcarLeido, generarCatalogoPDF }
+const eliminarContacto = async (req, res) => {
+  try {
+    await db.query('DELETE FROM contactos WHERE id = ?', [req.params.id])
+    res.json({ message: 'Mensaje eliminado' })
+  } catch (e) {
+    res.status(500).json({ message: 'Error al eliminar' })
+  }
+}
+
+module.exports = { enviarContacto, listarContactos, marcarLeido, eliminarContacto, generarCatalogoPDF }
