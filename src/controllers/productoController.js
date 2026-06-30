@@ -285,7 +285,7 @@ const importarExcel = async (req, res) => {
 
     const wb   = XLSX.read(req.file.buffer, { type: 'buffer' })
     const ws   = wb.Sheets[wb.SheetNames[0]]
-    const rows = XLSX.utils.sheet_to_json(ws)
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' })
 
     if (!rows.length) return res.status(400).json({ message: 'El archivo está vacío' })
 
@@ -295,15 +295,39 @@ const importarExcel = async (req, res) => {
 
     for (const row of rows) {
       try {
-        const codigo    = String(row['Sku']          || '').trim()
-        const titulo    = String(row['Titulo']       || '').trim()
+        const codigo    = String(row['Sku']          || row['SKU']    || '').trim()
+        const titulo    = String(row['Titulo']       || row['Nombre'] || '').trim()
         const categoria = String(row['Subcategoria'] || row['Categoria'] || '').trim()
         const precio    = row['Precio'] && Number(row['Precio']) > 0
                           ? `$${Number(row['Precio']).toLocaleString('es-CL')}`
-                          : 'Consultar'
-        const orden     = Number(row['Orden']) || 0
+                          : (String(row['Precio'] || 'Consultar').trim() || 'Consultar')
+        const orden          = Number(row['Orden']) || 0
+        const descCorta      = String(row['Descripcion_Corta']    || row['Descripción Corta']    || '').trim()
+        const descCompleta   = String(row['Descripcion_Completa'] || row['Descripción Completa'] || '').trim()
+        const caracteristicas = String(row['Caracteristicas'] || row['Características (JSON)'] || '').trim()
 
-        if (!codigo || !titulo) { omitidos++; continue }
+        if (!codigo) { omitidos++; continue }
+
+        // Si el producto ya existe, actualizar solo descripciones
+        const [exist] = await db.query('SELECT id FROM productos WHERE codigo = ?', [codigo])
+        if (exist.length) {
+          if (descCorta || descCompleta || caracteristicas) {
+            const updates = {}
+            if (descCorta)    updates.descripcion_corta = descCorta
+            if (descCompleta) updates.descripcion        = descCompleta
+            if (caracteristicas) {
+              try { JSON.parse(caracteristicas); updates.caracteristicas = caracteristicas } catch {}
+            }
+            if (Object.keys(updates).length > 0) {
+              const fields = Object.keys(updates).map(k => `${k} = ?`).join(', ')
+              await db.query(`UPDATE productos SET ${fields} WHERE id = ?`, [...Object.values(updates), exist[0].id])
+            }
+          }
+          omitidos++
+          continue
+        }
+
+        if (!titulo) { omitidos++; continue }
 
         let catId = null
         if (categoria) {
@@ -325,17 +349,19 @@ const importarExcel = async (req, res) => {
 
         if (!catId) { omitidos++; continue }
 
-        const [exist] = await db.query('SELECT id FROM productos WHERE codigo = ?', [codigo])
-        if (exist.length) { omitidos++; continue }
+        let caracJson = null
+        if (caracteristicas) {
+          try { JSON.parse(caracteristicas); caracJson = caracteristicas } catch {}
+        }
 
         await db.query(
-          `INSERT INTO productos (codigo, nombre, categoria_id, precio, orden, activo)
-           VALUES (?,?,?,?,?,1)`,
-          [codigo, titulo, catId, precio, orden]
+          `INSERT INTO productos (codigo, nombre, categoria_id, precio, orden, activo, descripcion_corta, descripcion, caracteristicas)
+           VALUES (?,?,?,?,?,1,?,?,?)`,
+          [codigo, titulo, catId, precio, orden, descCorta || null, descCompleta || null, caracJson]
         )
         creados++
       } catch (e) {
-        errores.push(`${row['Sku'] || '?'}: ${e.message}`)
+        errores.push(`${row['Sku'] || row['SKU'] || '?'}: ${e.message}`)
       }
     }
 
