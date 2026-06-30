@@ -33,7 +33,8 @@ router.get('/productos',      prodCtrl.listar)
 router.get('/productos/:id',  prodCtrl.obtener)
 
 // ── Productos (admin) ─────────────────────────────────────────
-router.post  ('/admin/productos/importar',            auth, uploadExcel.single('archivo'), prodCtrl.importarExcel)
+router.post  ('/admin/productos/importar',             auth, uploadExcel.single('archivo'), prodCtrl.importarExcel)
+router.post  ('/admin/productos/importar-descripciones', auth, uploadExcel.single('archivo'), prodCtrl.importarDescripciones)
 router.get   ('/admin/productos/exportar',             auth, exportCtrl.exportarProductos)
 router.get   ('/admin/productos',                     auth, prodCtrl.listarAdmin)
 router.get   ('/admin/productos/:id',                 auth, prodCtrl.obtenerAdmin)

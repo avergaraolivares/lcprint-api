@@ -346,10 +346,66 @@ const importarExcel = async (req, res) => {
   }
 }
 
+const importarDescripciones = async (req, res) => {
+  if (!req.file) return res.status(400).json({ message: 'Archivo requerido' })
+  try {
+    const XLSX   = require('xlsx')
+    const wb     = XLSX.read(req.file.buffer, { type: 'buffer' })
+    const ws     = wb.Sheets[wb.SheetNames[0]]
+    const rows   = XLSX.utils.sheet_to_json(ws, { defval: '' })
+
+    let actualizados = 0
+    let omitidos     = 0
+    const errores    = []
+
+    for (const row of rows) {
+      const sku           = String(row['SKU'] || row['Sku'] || row['sku'] || '').trim()
+      const descCorta     = String(row['Descripción Corta']    || row['Descripcion_Corta']    || row['descripcion_corta']    || '').trim()
+      const descCompleta  = String(row['Descripción Completa'] || row['Descripcion_Completa'] || row['descripcion_completa'] || '').trim()
+      const caracteristicas = String(row['Características (JSON)'] || row['Caracteristicas'] || row['caracteristicas'] || '').trim()
+
+      if (!sku) { omitidos++; continue }
+
+      const [exist] = await db.query('SELECT id FROM productos WHERE codigo = ?', [sku])
+      if (!exist.length) {
+        errores.push(`SKU no encontrado: ${sku}`)
+        omitidos++
+        continue
+      }
+
+      const updates = {}
+      if (descCorta)    updates.descripcion_corta = descCorta
+      if (descCompleta) updates.descripcion        = descCompleta
+      if (caracteristicas) {
+        try {
+          JSON.parse(caracteristicas)
+          updates.caracteristicas = caracteristicas
+        } catch {
+          errores.push(`JSON inválido en SKU ${sku} — se omitió características`)
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        const fields = Object.keys(updates).map(k => `${k} = ?`).join(', ')
+        const vals   = [...Object.values(updates), exist[0].id]
+        await db.query(`UPDATE productos SET ${fields} WHERE id = ?`, vals)
+        actualizados++
+      } else {
+        omitidos++
+      }
+    }
+
+    res.json({ actualizados, omitidos, errores })
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ message: 'Error al procesar el archivo' })
+  }
+}
+
 module.exports = {
   listar, obtener,
   listarAdmin, obtenerAdmin,
   crear, actualizar, eliminar,
   agregarImagen, eliminarImagen,
-  importarExcel,
+  importarExcel, importarDescripciones,
 }
