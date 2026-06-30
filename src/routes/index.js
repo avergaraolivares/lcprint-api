@@ -12,6 +12,11 @@ const userCtrl     = require('../controllers/usuarioController')
 const disenioCtrl  = require('../controllers/disenioController')
 const exportCtrl   = require('../controllers/exportController')
 
+// ── Visitas / Dashboard ───────────────────────────────────────
+const visitaCtrl = require('../controllers/visitaController')
+router.post('/visita',             visitaCtrl.registrarVisita)
+router.get ('/admin/estadisticas', auth, visitaCtrl.getEstadisticas)
+
 // ── Auth ──────────────────────────────────────────────────────
 router.post('/auth/login',    authCtrl.login)
 router.get ('/auth/me',       auth, authCtrl.me)
