@@ -239,12 +239,6 @@ const eliminar = async (req, res) => {
 
     deleteProductImages(rows[0])
 
-    const [imgs] = await db.query('SELECT url FROM producto_imagenes WHERE producto_id = ?', [req.params.id])
-    imgs.forEach(i => {
-      const fp = require('path').join(process.env.UPLOAD_PATH || './uploads', i.url.replace('/uploads/', ''))
-      if (require('fs').existsSync(fp)) require('fs').unlinkSync(fp)
-    })
-
     await db.query('DELETE FROM productos WHERE id = ?', [req.params.id])
     res.json({ message: 'Producto eliminado correctamente' })
   } catch (e) {
@@ -270,8 +264,12 @@ const eliminarImagen = async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM producto_imagenes WHERE id = ?', [req.params.imgId])
     if (!rows.length) return res.status(404).json({ message: 'Imagen no encontrada' })
-    const fp = require('path').join(process.env.UPLOAD_PATH || './uploads', rows[0].url.replace('/uploads/', ''))
-    if (require('fs').existsSync(fp)) require('fs').unlinkSync(fp)
+    const url = rows[0].url
+    if (url && url.includes('cloudinary.com')) {
+      const publicId = url.split('/').slice(-2).join('/').replace(/\.[^/.]+$/, '')
+      const cloudinary = require('../config/cloudinary')
+      await cloudinary.uploader.destroy(publicId)
+    }
     await db.query('DELETE FROM producto_imagenes WHERE id = ?', [req.params.imgId])
     res.json({ message: 'Imagen eliminada' })
   } catch (e) {
@@ -308,7 +306,6 @@ const importarExcel = async (req, res) => {
 
         if (!codigo) { omitidos++; continue }
 
-        // Si el producto ya existe, actualizar solo descripciones
         const [exist] = await db.query('SELECT id FROM productos WHERE codigo = ?', [codigo])
         if (exist.length) {
           if (descCorta || descCompleta || caracteristicas) {
