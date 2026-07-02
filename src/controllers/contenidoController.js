@@ -1,44 +1,22 @@
 const db                            = require('../config/db')
 const { processImage, processImageFull, deleteImage } = require('../config/upload')
 const sharp                         = require('sharp')
-const path                          = require('path')
-const fs                            = require('fs')
-const { v4: uuidv4 }               = require('uuid')
 
-const UPLOAD_PATH = process.env.UPLOAD_PATH || './uploads'
-
-// Procesar banner manteniendo proporciones (no cuadrado)
+// Procesar banner manteniendo proporciones — sube a Cloudinary
 const processBanner = async (buffer, folder) => {
-  const meta   = await sharp(buffer).metadata()
-  const { width, height } = meta
-  const uid    = uuidv4()
-  const dir    = path.join(UPLOAD_PATH, folder)
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-
-  const sizes = [
-    { suffix: 'original', maxW: 1920 },
-    { suffix: 'medium',   maxW: 960  },
-    { suffix: 'thumb',    maxW: 480  },
-  ]
-
-  const urls = {}
-  for (const { suffix, maxW } of sizes) {
-    const ratio = Math.min(1, maxW / width)
-    const nw    = Math.round(width  * ratio)
-    const nh    = Math.round(height * ratio)
-    const file  = `${uid}_${suffix}.webp`
-    await sharp(buffer)
-      .resize(nw, nh, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: suffix === 'original' ? 90 : 85 })
-      .toFile(path.join(dir, file))
-    urls[suffix] = `/uploads/${folder}/${file}`
-  }
-  return urls
+  const [original, medium, thumb] = await Promise.all([
+    processImageFull(buffer, folder),
+    processImageFull(
+      await sharp(buffer).resize(960, null, { withoutEnlargement: true }).webp({ quality: 85 }).toBuffer(),
+      folder
+    ),
+    processImageFull(
+      await sharp(buffer).resize(480, null, { withoutEnlargement: true }).webp({ quality: 85 }).toBuffer(),
+      folder
+    ),
+  ])
+  return { original, medium, thumb }
 }
-
-// Logos de confianza usan el mismo helper de subida a Cloudinary que el resto
-// de imágenes del sitio (processImage ya sube a Cloudinary, no a disco local).
-const processLogoPago = async (buffer, folder) => processImage(buffer, folder, 400)
 
 // ── Configuración empresa ─────────────────────────────────────
 const getConfig = async (req, res) => {
@@ -77,8 +55,8 @@ const updateConfig = async (req, res) => {
 }
 
 // ── Logos de confianza (Webpay Plus + Garantía) ─────────────────
-// Se reciben hasta 2 archivos en una sola petición multipart con
-// field names: logo_pago, logo_garantia
+const processLogoPago = async (buffer, folder) => processImage(buffer, folder, 400)
+
 const getLogosConfianza = async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -111,7 +89,6 @@ const updateLogosConfianza = async (req, res) => {
       }
     }
 
-    // Permite eliminar uno específico vía body.eliminar = 'logo_pago' | 'logo_garantia'
     if (req.body.eliminar && campos.includes(req.body.eliminar)) {
       const campo = req.body.eliminar
       if (actuales[campo]) deleteImage(actuales[campo])
@@ -161,7 +138,6 @@ const updateInicio = async (req, res) => {
     const sets    = campos.map(c => `${c} = ?`).join(', ')
     const valores = campos.map(c => req.body[c] ?? null)
 
-    // req.files puede ser un objeto (fields) o undefined (single)
     const getFile = (name) => {
       if (!req.files) return req.file || null
       if (Array.isArray(req.files)) return req.files.find(f => f.fieldname === name) || null
@@ -185,7 +161,7 @@ const updateInicio = async (req, res) => {
       extraVals.push(urls.original, urls.medium, urls.thumb)
     }
 
-    // Imagen col 1 del spotlight (imagen categoría)
+    // Spotlight 1
     const spImgFile = getFile('spotlight_imagen')
     if (spImgFile) {
       if (curr[0]?.spotlight_imagen) deleteImage(curr[0].spotlight_imagen)
@@ -194,7 +170,6 @@ const updateInicio = async (req, res) => {
       extraVals.push(url)
     }
 
-    // Banner col 2 del spotlight
     const spBannerFile = getFile('spotlight_banner')
     if (spBannerFile) {
       if (curr[0]?.spotlight_banner) deleteImage(curr[0].spotlight_banner)
@@ -203,25 +178,7 @@ const updateInicio = async (req, res) => {
       extraVals.push(url)
     }
 
-    // Spotlight 3 — imagen categoría
-    const sp3ImgFile = getFile('spotlight3_imagen')
-    if (sp3ImgFile) {
-      if (curr[0]?.spotlight3_imagen) deleteImage(curr[0].spotlight3_imagen)
-      const url = await processImageFull(sp3ImgFile.buffer, 'spotlight')
-      extraSet  += ', spotlight3_imagen = ?'
-      extraVals.push(url)
-    }
-
-    // Spotlight 3 — banner
-    const sp3BannerFile = getFile('spotlight3_banner')
-    if (sp3BannerFile) {
-      if (curr[0]?.spotlight3_banner) deleteImage(curr[0].spotlight3_banner)
-      const url = await processImageFull(sp3BannerFile.buffer, 'spotlight')
-      extraSet  += ', spotlight3_banner = ?'
-      extraVals.push(url)
-    }
-
-    // Spotlight 2 — imagen categoría
+    // Spotlight 2
     const sp2ImgFile = getFile('spotlight2_imagen')
     if (sp2ImgFile) {
       if (curr[0]?.spotlight2_imagen) deleteImage(curr[0].spotlight2_imagen)
@@ -230,12 +187,28 @@ const updateInicio = async (req, res) => {
       extraVals.push(url)
     }
 
-    // Spotlight 2 — banner
     const sp2BannerFile = getFile('spotlight2_banner')
     if (sp2BannerFile) {
       if (curr[0]?.spotlight2_banner) deleteImage(curr[0].spotlight2_banner)
       const url = await processImageFull(sp2BannerFile.buffer, 'spotlight')
       extraSet  += ', spotlight2_banner = ?'
+      extraVals.push(url)
+    }
+
+    // Spotlight 3
+    const sp3ImgFile = getFile('spotlight3_imagen')
+    if (sp3ImgFile) {
+      if (curr[0]?.spotlight3_imagen) deleteImage(curr[0].spotlight3_imagen)
+      const url = await processImageFull(sp3ImgFile.buffer, 'spotlight')
+      extraSet  += ', spotlight3_imagen = ?'
+      extraVals.push(url)
+    }
+
+    const sp3BannerFile = getFile('spotlight3_banner')
+    if (sp3BannerFile) {
+      if (curr[0]?.spotlight3_banner) deleteImage(curr[0].spotlight3_banner)
+      const url = await processImageFull(sp3BannerFile.buffer, 'spotlight')
+      extraSet  += ', spotlight3_banner = ?'
       extraVals.push(url)
     }
 
@@ -297,8 +270,7 @@ const updateNosotros = async (req, res) => {
   }
 }
 
-
-// ── Spotlight de categoría (soporta num=1, 2 y 3) ────────────
+// ── Spotlight de categoría ────────────────────────────────────
 const getSpotlight = async (req, res) => {
   const num = Number(req.query.num) || 1
 
@@ -310,37 +282,25 @@ const getSpotlight = async (req, res) => {
         'SELECT spotlight3_categoria_id, spotlight3_titulo, spotlight3_desc, spotlight3_imagen, spotlight3_banner, spotlight3_color_fondo, spotlight3_color_texto FROM contenido_inicio WHERE id = 1'
       )
       const r = rows[0] || {}
-      catId      = r.spotlight3_categoria_id
-      titulo     = r.spotlight3_titulo
-      desc       = r.spotlight3_desc
-      imagen     = r.spotlight3_imagen
-      banner     = r.spotlight3_banner
-      colorFondo = r.spotlight3_color_fondo
-      colorTexto = r.spotlight3_color_texto
+      catId = r.spotlight3_categoria_id; titulo = r.spotlight3_titulo; desc = r.spotlight3_desc
+      imagen = r.spotlight3_imagen; banner = r.spotlight3_banner
+      colorFondo = r.spotlight3_color_fondo; colorTexto = r.spotlight3_color_texto
     } else if (num === 2) {
       const [rows] = await db.query(
         'SELECT spotlight2_categoria_id, spotlight2_titulo, spotlight2_desc, spotlight2_imagen, spotlight2_banner, spotlight2_color_fondo, spotlight2_color_texto FROM contenido_inicio WHERE id = 1'
       )
       const r = rows[0] || {}
-      catId      = r.spotlight2_categoria_id
-      titulo     = r.spotlight2_titulo
-      desc       = r.spotlight2_desc
-      imagen     = r.spotlight2_imagen
-      banner     = r.spotlight2_banner
-      colorFondo = r.spotlight2_color_fondo
-      colorTexto = r.spotlight2_color_texto
+      catId = r.spotlight2_categoria_id; titulo = r.spotlight2_titulo; desc = r.spotlight2_desc
+      imagen = r.spotlight2_imagen; banner = r.spotlight2_banner
+      colorFondo = r.spotlight2_color_fondo; colorTexto = r.spotlight2_color_texto
     } else {
       const [rows] = await db.query(
         'SELECT spotlight_categoria_id, spotlight_titulo, spotlight_desc, spotlight_imagen, spotlight_banner, spotlight_color_fondo, spotlight_color_texto FROM contenido_inicio WHERE id = 1'
       )
       const r = rows[0] || {}
-      catId      = r.spotlight_categoria_id
-      titulo     = r.spotlight_titulo
-      desc       = r.spotlight_desc
-      imagen     = r.spotlight_imagen
-      banner     = r.spotlight_banner
-      colorFondo = r.spotlight_color_fondo
-      colorTexto = r.spotlight_color_texto
+      catId = r.spotlight_categoria_id; titulo = r.spotlight_titulo; desc = r.spotlight_desc
+      imagen = r.spotlight_imagen; banner = r.spotlight_banner
+      colorFondo = r.spotlight_color_fondo; colorTexto = r.spotlight_color_texto
     }
 
     if (!catId) return res.json(null)
