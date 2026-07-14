@@ -54,12 +54,67 @@ const enviarContacto = async (req, res) => {
           to:      process.env.MAIL_TO,
           subject: `Nuevo contacto de ${nombre} — LC Print`,
           html: `
-            <h2>Nuevo mensaje de contacto</h2>
-            <p><strong>Nombre:</strong> ${nombre}</p>
-            <p><strong>Email:</strong> ${email}</p>
-            <p><strong>Teléfono:</strong> ${telefono || 'No indicado'}</p>
-            <p><strong>Mensaje:</strong></p>
-            <p>${mensaje}</p>
+            <div style="font-family: Arial, Helvetica, sans-serif; max-width: 520px; margin: 0 auto; background:#f4f5f7; padding: 24px 16px;">
+              <div style="background:#ffffff; border-radius: 12px; overflow: hidden;">
+
+                <div style="background:#0a1628; padding: 28px 32px; text-align:center;">
+                  <div style="color:#ffffff; font-size: 20px; font-weight: 700;">
+                    LC<span style="color:#00AEEF;">Print</span>
+                  </div>
+                  <div style="color:#8ca3c7; font-size: 12px; margin-top: 4px;">Nuevo mensaje de contacto</div>
+                </div>
+
+                <div style="padding: 28px 32px;">
+                  <p style="font-size: 14px; color:#4b5563; margin: 0 0 20px;">
+                    Recibiste un nuevo mensaje a través del formulario de contacto de <strong>lcprint.cl</strong>.
+                  </p>
+
+                  <table role="presentation" width="100%" style="border-collapse: collapse; margin-bottom: 20px;">
+                    <tr>
+                      <td style="padding: 10px 0; border-bottom: 1px solid #eef0f3; width: 90px; vertical-align: top;">
+                        <span style="font-size: 12px; color:#9ca3af; text-transform: uppercase; letter-spacing: 0.03em;">Nombre</span>
+                      </td>
+                      <td style="padding: 10px 0; border-bottom: 1px solid #eef0f3;">
+                        <span style="font-size: 14px; color:#111827; font-weight: 600;">${nombre}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 10px 0; border-bottom: 1px solid #eef0f3; vertical-align: top;">
+                        <span style="font-size: 12px; color:#9ca3af; text-transform: uppercase; letter-spacing: 0.03em;">Email</span>
+                      </td>
+                      <td style="padding: 10px 0; border-bottom: 1px solid #eef0f3;">
+                        <a href="mailto:${email}" style="font-size: 14px; color:#0a1628; font-weight: 600; text-decoration:none;">${email}</a>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 10px 0; border-bottom: 1px solid #eef0f3; vertical-align: top;">
+                        <span style="font-size: 12px; color:#9ca3af; text-transform: uppercase; letter-spacing: 0.03em;">Teléfono</span>
+                      </td>
+                      <td style="padding: 10px 0; border-bottom: 1px solid #eef0f3;">
+                        <span style="font-size: 14px; color:#111827;">${telefono || 'No indicado'}</span>
+                      </td>
+                    </tr>
+                  </table>
+
+                  <div style="background:#f9fafb; border: 1px solid #eef0f3; border-radius: 8px; padding: 16px 18px; margin-bottom: 24px;">
+                    <div style="font-size: 12px; color:#9ca3af; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px;">Mensaje</div>
+                    <div style="font-size: 14px; color:#374151; line-height: 1.6; white-space: pre-wrap;">${mensaje}</div>
+                  </div>
+
+                  <div style="text-align:center;">
+                    <a href="mailto:${email}?subject=Re: Consulta a LC Print"
+                       style="display:inline-block; padding: 12px 28px; background:#0a1628; color:#ffffff; font-size: 14px; font-weight: 600; text-decoration:none; border-radius: 8px;">
+                      Responder a ${nombre}
+                    </a>
+                  </div>
+                </div>
+
+                <div style="padding: 16px 32px; background:#f9fafb; border-top: 1px solid #eef0f3; text-align:center;">
+                  <div style="font-size: 11px; color:#9ca3af;">Este mensaje fue enviado desde el formulario de contacto de lcprint.cl</div>
+                </div>
+
+              </div>
+            </div>
           `
         })
       } catch (mailErr) {
