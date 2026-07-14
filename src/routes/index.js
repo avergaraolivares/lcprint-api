@@ -18,9 +18,11 @@ router.post('/visita',             visitaCtrl.registrarVisita)
 router.get ('/admin/estadisticas', auth, visitaCtrl.getEstadisticas)
 
 // ── Auth ──────────────────────────────────────────────────────
-router.post('/auth/login',    authCtrl.login)
-router.get ('/auth/me',       auth, authCtrl.me)
-router.put ('/auth/password', auth, authCtrl.cambiarPassword)
+router.post('/auth/login',           authCtrl.login)
+router.get ('/auth/me',              auth, authCtrl.me)
+router.put ('/auth/password',        auth, authCtrl.cambiarPassword)
+router.post('/auth/forgot-password', authCtrl.forgotPassword)
+router.post('/auth/reset-password',  authCtrl.resetPassword)
 
 // ── Categorías (públicas) ─────────────────────────────────────
 router.get('/categorias',     catCtrl.listar)
