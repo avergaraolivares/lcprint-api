@@ -56,10 +56,15 @@ const contactoLimiter = rateLimit({
   legacyHeaders: false,
 })
 
-// API general: 200 req/15min
+// API general: 1000 req/15min — el límite anterior (200) era demasiado
+// bajo: una sola carga de la página de Inicio dispara ~12-15 llamadas
+// simultáneas (categorías, banners, configuración, diseño, spotlight,
+// productos, contenido, clientes, logos-confianza, visita), así que se
+// agotaba con apenas 15-16 recargas en 15 minutos — algo normal durante
+// desarrollo o para un visitante navegando varias páginas del sitio.
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.path.startsWith('/admin'), // admin no tiene límite general
