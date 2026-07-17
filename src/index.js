@@ -32,8 +32,33 @@ app.use((req, res, next) => {
 })
 
 // ── CORS ──────────────────────────────────────────────────────
+// FRONTEND_URL define el dominio "canónico" (ej. https://lcprint.cl),
+// pero el sitio también es accesible con "www." delante — y para CORS,
+// el navegador trata lcprint.cl y www.lcprint.cl como orígenes
+// DISTINTOS. Antes solo se permitía el valor exacto de FRONTEND_URL,
+// así que cualquier visita por la variante no configurada (con o sin
+// www) quedaba bloqueada — todas las peticiones a la API fallaban con
+// error de CORS, aunque el sitio cargara con normalidad.
+const frontendBase = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
+const origenesPermitidos = [frontendBase]
+try {
+  const url = new URL(frontendBase)
+  const alternativo = url.hostname.startsWith('www.')
+    ? `${url.protocol}//${url.hostname.replace(/^www\./, '')}`
+    : `${url.protocol}//www.${url.hostname}`
+  origenesPermitidos.push(alternativo)
+} catch (e) { /* FRONTEND_URL no es una URL válida — se ignora la variante */ }
+
 app.use(cors({
-  origin:      process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Peticiones sin header Origin (ej. curl, apps móviles, Postman)
+    // no tienen origen que validar — se permiten igual.
+    if (!origin || origenesPermitidos.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(new Error('No permitido por CORS'))
+    }
+  },
   credentials: true,
 }))
 
