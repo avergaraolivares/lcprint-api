@@ -39,8 +39,13 @@ const enviarContacto = async (req, res) => {
     // Responder inmediatamente — el email se envía en segundo plano sin bloquear
     res.json({ message: 'Mensaje enviado correctamente' })
 
+    // [DIAGNÓSTICO TEMPORAL] — confirma en el log si las variables MAIL_*
+    // llegan como se espera al proceso, antes de intentar el envío.
+    console.log('[DEBUG contacto] MAIL_USER presente:', !!process.env.MAIL_USER, '| MAIL_PASS presente:', !!process.env.MAIL_PASS, '| MAIL_HOST:', process.env.MAIL_HOST, '| MAIL_PORT:', process.env.MAIL_PORT)
+
     if (process.env.MAIL_USER && process.env.MAIL_PASS) {
       try {
+        console.log('[DEBUG contacto] Intentando conectar a SMTP...')
         const transporter = nodemailer.createTransport({
           host: process.env.MAIL_HOST || 'smtp.gmail.com',
           port: Number(process.env.MAIL_PORT) || 587,
@@ -117,9 +122,12 @@ const enviarContacto = async (req, res) => {
             </div>
           `
         })
+        console.log('[DEBUG contacto] Correo enviado exitosamente')
       } catch (mailErr) {
-        console.error('Error enviando email de notificación:', mailErr.message)
+        console.error('[DEBUG contacto] Error enviando email de notificación:', mailErr)
       }
+    } else {
+      console.log('[DEBUG contacto] Bloque de envío OMITIDO — falta MAIL_USER o MAIL_PASS')
     }
   } catch (e) {
     console.error(e)
