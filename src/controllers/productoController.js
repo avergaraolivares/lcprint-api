@@ -30,7 +30,7 @@ const listar = async (req, res) => {
     )
 
     const [rows] = await db.query(
-      `SELECT p.id, p.codigo, p.nombre, p.descripcion_corta, p.precio,
+      `SELECT p.id, p.codigo, p.nombre, p.descripcion_corta, p.precio, p.mostrar_precio_web,
               p.imagen_principal, p.imagen_original, p.imagen_medium, p.imagen_thumb,
               p.destacado,
               c.id as categoria_id, c.nombre as categoria_nombre, c.slug as categoria_slug,
@@ -42,6 +42,12 @@ const listar = async (req, res) => {
        LIMIT ? OFFSET ?`,
       [...params, Number(limit), Number(offset)]
     )
+
+    // Ocultar precio en la web cuando el producto no lo permite
+    rows.forEach(r => {
+      if (!r.mostrar_precio_web) r.precio = null
+      delete r.mostrar_precio_web
+    })
 
     res.json({
       data:        rows,
@@ -66,6 +72,8 @@ const obtener = async (req, res) => {
     if (!rows.length) return res.status(404).json({ message: 'Producto no encontrado' })
 
     const producto = rows[0]
+    if (!producto.mostrar_precio_web) producto.precio = null
+    delete producto.mostrar_precio_web
     if (producto.caracteristicas && typeof producto.caracteristicas === 'string') {
       producto.caracteristicas = JSON.parse(producto.caracteristicas)
     }
@@ -98,7 +106,7 @@ const listarAdmin = async (req, res) => {
        JOIN categorias c ON p.categoria_id = c.id ${where}`, params
     )
     const [rows] = await db.query(
-      `SELECT p.id, p.codigo, p.nombre, p.precio,
+      `SELECT p.id, p.codigo, p.nombre, p.precio, p.mostrar_precio_web,
               p.imagen_principal, p.imagen_thumb,
               p.destacado, p.activo, p.created_at,
               c.nombre as categoria_nombre
@@ -109,6 +117,12 @@ const listarAdmin = async (req, res) => {
        LIMIT ? OFFSET ?`,
       [...params, Number(limit), Number(offset)]
     )
+
+    // Ocultar precio en la web cuando el producto no lo permite
+    rows.forEach(r => {
+      if (!r.mostrar_precio_web) r.precio = null
+      delete r.mostrar_precio_web
+    })
 
     res.json({
       data:        rows,
@@ -132,6 +146,8 @@ const obtenerAdmin = async (req, res) => {
     if (!rows.length) return res.status(404).json({ message: 'Producto no encontrado' })
 
     const producto = rows[0]
+    if (!producto.mostrar_precio_web) producto.precio = null
+    delete producto.mostrar_precio_web
     if (producto.caracteristicas && typeof producto.caracteristicas === 'string') {
       producto.caracteristicas = JSON.parse(producto.caracteristicas)
     }
@@ -148,7 +164,8 @@ const obtenerAdmin = async (req, res) => {
 const crear = async (req, res) => {
   try {
     const { codigo, nombre, categoria_id, descripcion_corta, descripcion,
-            caracteristicas, precio, destacado = 0, orden = 0 } = req.body
+            caracteristicas, precio, destacado = 0, orden = 0,
+            mostrar_precio_web = 0 } = req.body
     if (!codigo || !nombre || !categoria_id)
       return res.status(400).json({ message: 'Código, nombre y categoría son requeridos' })
 
@@ -164,10 +181,10 @@ const crear = async (req, res) => {
 
     const [r] = await db.query(
       `INSERT INTO productos (codigo, nombre, categoria_id, descripcion_corta, descripcion,
-        caracteristicas, precio, imagen_principal, imagen_original, imagen_medium, imagen_thumb,
-        destacado, orden) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        caracteristicas, precio, mostrar_precio_web, imagen_principal, imagen_original, imagen_medium, imagen_thumb,
+        destacado, orden) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [codigo, nombre, categoria_id, descripcion_corta || null, descripcion || null,
-       caract, precio || null,
+       caract, precio || null, Number(mostrar_precio_web) ? 1 : 0,
        imagenes.imagen_principal || null, imagenes.imagen_original || null,
        imagenes.imagen_medium    || null, imagenes.imagen_thumb    || null,
        destacado, orden]
@@ -189,7 +206,8 @@ const actualizar = async (req, res) => {
 
     const prod = exist[0]
     const { codigo, nombre, categoria_id, descripcion_corta, descripcion,
-            caracteristicas, precio, destacado, activo, orden } = req.body
+            caracteristicas, precio, destacado, activo, orden,
+            mostrar_precio_web } = req.body
 
     let imagenes = {
       imagen_principal: prod.imagen_principal,
@@ -209,7 +227,7 @@ const actualizar = async (req, res) => {
 
     await db.query(
       `UPDATE productos SET codigo=?, nombre=?, categoria_id=?, descripcion_corta=?,
-        descripcion=?, caracteristicas=?, precio=?,
+        descripcion=?, caracteristicas=?, precio=?, mostrar_precio_web=?,
         imagen_principal=?, imagen_original=?, imagen_medium=?, imagen_thumb=?,
         destacado=?, activo=?, orden=?
        WHERE id=?`,
@@ -218,6 +236,7 @@ const actualizar = async (req, res) => {
        descripcion_corta ?? prod.descripcion_corta,
        descripcion ?? prod.descripcion, caract,
        precio ?? prod.precio,
+       mostrar_precio_web !== undefined ? (Number(mostrar_precio_web) ? 1 : 0) : prod.mostrar_precio_web,
        imagenes.imagen_principal, imagenes.imagen_original,
        imagenes.imagen_medium,    imagenes.imagen_thumb,
        destacado ?? prod.destacado, activo ?? prod.activo,
