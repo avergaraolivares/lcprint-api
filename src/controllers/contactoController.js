@@ -176,9 +176,26 @@ const fetchRaw = async (url) => {
 // Para imágenes de productos: fuerza JPEG vía Cloudinary (pdfkit no soporta webp)
 const toJpgUrl = (url) => {
   if (!url || !url.includes('/upload/')) return url
-  return url.replace('/upload/', '/upload/f_jpg,q_auto/')
+  return url.replace('/upload/', '/upload/f_jpg,q_auto,w_300,c_limit/')
 }
 const fetchProductImage = async (url) => fetchRaw(toJpgUrl(url))
+
+// Descarga en paralelo con limite de concurrencia (evita saturar red/Cloudinary)
+const fetchAllImages = async (urls, concurrencia = 10) => {
+  const resultados = new Map()
+  let idx = 0
+  const worker = async () => {
+    while (idx < urls.length) {
+      const i = idx++
+      const url = urls[i]
+      if (url && !resultados.has(url)) {
+        resultados.set(url, await fetchProductImage(url))
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrencia, urls.length) }, worker))
+  return resultados
+}
 
 // ── Generador PDF ─────────────────────────────────────────────
 const BANNER_URL = 'https://res.cloudinary.com/db3hrbj6s/image/upload/v1781800861/lcprint/catalogo/lyu2fot10bdbapwwrkk8.png'
@@ -214,6 +231,13 @@ const generarCatalogoPDF = async (req, res) => {
       fetchRaw(BANNER_URL),
       fetchRaw(LOGO_URL),
     ])
+
+    // Pre-descargar TODAS las imagenes de productos en paralelo (10 a la vez)
+    console.time('descarga imagenes')
+    const urlsImgs = productos.map(p => p.imagen_thumb || p.imagen_medium || p.imagen_principal).filter(Boolean)
+    const imagenes = await fetchAllImages(urlsImgs, 10)
+    console.timeEnd('descarga imagenes')
+    console.log(`Imagenes descargadas: ${[...imagenes.values()].filter(Boolean).length}/${urlsImgs.length}`)
     console.log('Banner:', bannerBuf ? bannerBuf.length + ' bytes' : 'NULL')
     console.log('Logo:', logoBuf ? logoBuf.length + ' bytes' : 'NULL')
 
@@ -336,7 +360,7 @@ const generarCatalogoPDF = async (req, res) => {
 
         const imgUrl = prod.imagen_thumb || prod.imagen_medium || prod.imagen_principal
         if (imgUrl) {
-          const imgBuf = await fetchProductImage(imgUrl)
+          const imgBuf = imagenes.get(imgUrl)
           if (imgBuf) {
             try {
               doc.image(imgBuf, x + 2, y + 2, {
